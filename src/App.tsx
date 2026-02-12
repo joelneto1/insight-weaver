@@ -11,6 +11,7 @@ import Kanban from "./pages/Kanban";
 import Canais from "./pages/Canais";
 import Prompts from "./pages/Prompts";
 import Configuracoes from "./pages/Configuracoes";
+import Contas from "./pages/Contas";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -39,6 +40,7 @@ const App = () => (
               <Route path="/" element={<Dashboard />} />
               <Route path="/kanban" element={<Kanban />} />
               <Route path="/canais" element={<Canais />} />
+              <Route path="/contas" element={<Contas />} />
               <Route path="/prompts" element={<Prompts />} />
               <Route path="/config" element={<Configuracoes />} />
             </Route>

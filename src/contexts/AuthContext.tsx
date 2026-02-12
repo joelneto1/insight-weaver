@@ -8,6 +8,8 @@ interface Profile {
   display_name: string | null;
   avatar_url: string | null;
   bio: string | null;
+  phone: string | null;
+  birth_date: string | null;
 }
 
 interface AuthContextType {
@@ -24,8 +26,8 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   profile: null,
   loading: true,
-  signOut: async () => {},
-  refreshProfile: async () => {},
+  signOut: async () => { },
+  refreshProfile: async () => { },
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {

@@ -1,22 +1,25 @@
 import { useState } from "react";
 import { SAMPLE_CANAIS, SAMPLE_VIDEOS, STATUS_LABELS, STATUS_COLORS, type Canal, type VideoStatus } from "@/lib/data";
-import { Plus, Settings2, Tv, Globe, Clock, Mail } from "lucide-react";
+import { Plus, Settings2, Tv, Globe, Clock, Mail, Edit2 } from "lucide-react";
 import { motion } from "framer-motion";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+const INITIAL_CANAL_STATE = {
+  nome: "", idioma: "Português", horarioPostagem: "19:00",
+  email: "", frequencia: "", videosPostados: 0, anotacoes: "",
+  nicho: "", subnicho: "", micronicho: "",
+};
+
 export default function Canais() {
   const [canais, setCanais] = useState<Canal[]>(SAMPLE_CANAIS);
-  const [showCreate, setShowCreate] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [selectedCanal, setSelectedCanal] = useState<string>(canais[0]?.id || "");
-  const [newCanal, setNewCanal] = useState({
-    nome: "", idioma: "Português", horarioPostagem: "19:00",
-    email: "", frequencia: "", videosPostados: 0, anotacoes: "",
-    nicho: "", subnicho: "", micronicho: "",
-  });
+  const [formData, setFormData] = useState(INITIAL_CANAL_STATE);
 
   const canal = canais.find((c) => c.id === selectedCanal);
   const canalVideos = SAMPLE_VIDEOS.filter((v) => v.canalId === selectedCanal);
@@ -26,13 +29,35 @@ export default function Canais() {
     return acc;
   }, {} as Record<VideoStatus, number>);
 
-  const handleCreate = () => {
-    if (!newCanal.nome) return;
-    const c: Canal = { id: `c${Date.now()}`, ...newCanal };
-    setCanais((prev) => [...prev, c]);
-    setSelectedCanal(c.id);
-    setNewCanal({ nome: "", idioma: "Português", horarioPostagem: "19:00", email: "", frequencia: "", videosPostados: 0, anotacoes: "", nicho: "", subnicho: "", micronicho: "" });
-    setShowCreate(false);
+  const handleOpenCreate = () => {
+    setFormData(INITIAL_CANAL_STATE);
+    setIsEditing(false);
+    setShowModal(true);
+  };
+
+  const handleOpenEdit = () => {
+    if (!canal) return;
+    setFormData({ ...canal });
+    setIsEditing(true);
+    setShowModal(true);
+  };
+
+  const handleSave = () => {
+    if (!formData.nome) return;
+
+    if (isEditing && canal) {
+      // Update existing canal
+      setCanais((prev) =>
+        prev.map((c) => (c.id === canal.id ? { ...c, ...formData } : c))
+      );
+    } else {
+      // Create new canal
+      const newCanal: Canal = { id: `c${Date.now()}`, ...formData };
+      setCanais((prev) => [...prev, newCanal]);
+      setSelectedCanal(newCanal.id);
+    }
+
+    setShowModal(false);
   };
 
   return (
@@ -43,22 +68,28 @@ export default function Canais() {
           <p className="text-sm text-muted-foreground mt-1">Selecione um canal e gerencie seus vídeos</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2"><Settings2 className="w-4 h-4" /> Criar Atalhos</Button>
-          <Button onClick={() => setShowCreate(true)} className="gradient-accent text-primary-foreground gap-2">
+          {/* <Button variant="outline" className="gap-2"><Settings2 className="w-4 h-4" /> Criar Atalhos</Button> */}
+          <Button onClick={handleOpenCreate} className="gradient-accent text-primary-foreground gap-2">
             <Plus className="w-4 h-4" /> Novo Canal
           </Button>
         </div>
       </div>
 
       {/* Canal selector */}
-      <Select value={selectedCanal} onValueChange={setSelectedCanal}>
-        <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          {canais.map((c) => (
-            <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="flex items-center gap-2">
+        {canais.length > 0 ? (
+          <Select value={selectedCanal} onValueChange={setSelectedCanal}>
+            <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {canais.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <p className="text-muted-foreground text-sm">Nenhum canal cadastrado.</p>
+        )}
+      </div>
 
       {canal && (
         <motion.div
@@ -67,20 +98,25 @@ export default function Canais() {
           animate={{ opacity: 1, y: 0 }}
           className="bg-card border border-border rounded-xl p-6 space-y-5"
         >
-          <div className="flex items-start gap-3">
-            <Tv className="w-5 h-5 text-primary mt-0.5" />
-            <div>
-              <h2 className="text-xl font-bold text-foreground">{canal.nome}</h2>
-              <div className="flex flex-wrap gap-4 mt-2 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1"><Globe className="w-3.5 h-3.5" />{canal.idioma}</span>
-                <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{canal.horarioPostagem}</span>
-                <span className="flex items-center gap-1"><Mail className="w-3.5 h-3.5" />{canal.email}</span>
-                <span>{canal.videosPostados} vídeos postados</span>
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-3">
+              <Tv className="w-5 h-5 text-primary mt-0.5" />
+              <div>
+                <h2 className="text-xl font-bold text-foreground">{canal.nome}</h2>
+                <div className="flex flex-wrap gap-4 mt-2 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1"><Globe className="w-3.5 h-3.5" />{canal.idioma}</span>
+                  <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{canal.horarioPostagem}</span>
+                  <span className="flex items-center gap-1"><Mail className="w-3.5 h-3.5" />{canal.email}</span>
+                  <span>{canal.videosPostados} vídeos postados</span>
+                </div>
               </div>
             </div>
+
+            <Button variant="outline" size="sm" onClick={handleOpenEdit} className="gap-2">
+              <Edit2 className="w-4 h-4" /> Editar Canal
+            </Button>
           </div>
 
-          {/* Status cards */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {(Object.keys(STATUS_LABELS) as VideoStatus[]).map((s) => (
               <div key={s} className="bg-secondary/50 rounded-lg p-3">
@@ -103,35 +139,37 @@ export default function Canais() {
         </motion.div>
       )}
 
-      {/* Create canal dialog */}
-      <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="bg-card border-border max-h-[90vh] overflow-y-auto">
+      <Dialog open={showModal} onOpenChange={setShowModal}>
+        <DialogContent className="bg-card border-border max-h-[90vh] overflow-y-auto w-full max-w-lg">
           <DialogHeader>
-            <DialogTitle>Criar Novo Canal</DialogTitle>
+            <DialogTitle>{isEditing ? "Editar Canal" : "Criar Novo Canal"}</DialogTitle>
+            <DialogDescription>
+              {isEditing ? "Edite as informações do seu canal abaixo." : "Preencha as informações para criar um novo canal."}
+            </DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">Preencha as informações do novo canal</p>
+
           <div className="space-y-4 mt-2">
             <div>
               <label className="text-sm font-medium text-foreground">Nome do Canal</label>
-              <Input value={newCanal.nome} onChange={(e) => setNewCanal({ ...newCanal, nome: e.target.value })} className="mt-1" />
+              <Input value={formData.nome} onChange={(e) => setFormData({ ...formData, nome: e.target.value })} className="mt-1" />
             </div>
             <div>
               <label className="text-sm font-medium text-foreground">Nicho</label>
-              <Input value={newCanal.nicho} onChange={(e) => setNewCanal({ ...newCanal, nicho: e.target.value })} className="mt-1" />
+              <Input value={formData.nicho} onChange={(e) => setFormData({ ...formData, nicho: e.target.value })} className="mt-1" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-sm font-medium text-foreground">Subnicho</label>
-                <Input value={newCanal.subnicho} onChange={(e) => setNewCanal({ ...newCanal, subnicho: e.target.value })} className="mt-1" />
+                <Input value={formData.subnicho} onChange={(e) => setFormData({ ...formData, subnicho: e.target.value })} className="mt-1" />
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground">Micronicho</label>
-                <Input value={newCanal.micronicho} onChange={(e) => setNewCanal({ ...newCanal, micronicho: e.target.value })} className="mt-1" />
+                <Input value={formData.micronicho} onChange={(e) => setFormData({ ...formData, micronicho: e.target.value })} className="mt-1" />
               </div>
             </div>
             <div>
               <label className="text-sm font-medium text-foreground">Idioma</label>
-              <Select value={newCanal.idioma} onValueChange={(v) => setNewCanal({ ...newCanal, idioma: v })}>
+              <Select value={formData.idioma} onValueChange={(v) => setFormData({ ...formData, idioma: v })}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Português">Português</SelectItem>
@@ -142,27 +180,29 @@ export default function Canais() {
             </div>
             <div>
               <label className="text-sm font-medium text-foreground">Horário de Postagem</label>
-              <Input value={newCanal.horarioPostagem} onChange={(e) => setNewCanal({ ...newCanal, horarioPostagem: e.target.value })} className="mt-1" placeholder="Ex: 13:00" />
+              <Input value={formData.horarioPostagem} onChange={(e) => setFormData({ ...formData, horarioPostagem: e.target.value })} className="mt-1" placeholder="Ex: 13:00" />
             </div>
             <div>
               <label className="text-sm font-medium text-foreground">E-mail</label>
-              <Input value={newCanal.email} onChange={(e) => setNewCanal({ ...newCanal, email: e.target.value })} className="mt-1" />
+              <Input value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="mt-1" />
             </div>
             <div>
               <label className="text-sm font-medium text-foreground">Frequência de Postagem</label>
-              <Input value={newCanal.frequencia} onChange={(e) => setNewCanal({ ...newCanal, frequencia: e.target.value })} className="mt-1" placeholder="Ex: Diário, 3x por semana" />
+              <Input value={formData.frequencia} onChange={(e) => setFormData({ ...formData, frequencia: e.target.value })} className="mt-1" placeholder="Ex: Diário, 3x por semana" />
             </div>
             <div>
               <label className="text-sm font-medium text-foreground">Vídeos Já Postados</label>
-              <Input type="number" value={newCanal.videosPostados} onChange={(e) => setNewCanal({ ...newCanal, videosPostados: Number(e.target.value) })} className="mt-1" />
+              <Input type="number" value={formData.videosPostados} onChange={(e) => setFormData({ ...formData, videosPostados: Number(e.target.value) })} className="mt-1" />
             </div>
             <div>
               <label className="text-sm font-medium text-foreground">Anotações</label>
-              <Textarea value={newCanal.anotacoes} onChange={(e) => setNewCanal({ ...newCanal, anotacoes: e.target.value })} className="mt-1" rows={3} />
+              <Textarea value={formData.anotacoes} onChange={(e) => setFormData({ ...formData, anotacoes: e.target.value })} className="mt-1" rows={3} />
             </div>
             <div className="flex gap-3 pt-2">
-              <Button variant="outline" onClick={() => setShowCreate(false)} className="flex-1">Cancelar</Button>
-              <Button onClick={handleCreate} className="flex-1 gradient-accent text-primary-foreground">Criar Canal</Button>
+              <Button variant="outline" onClick={() => setShowModal(false)} className="flex-1">Cancelar</Button>
+              <Button onClick={handleSave} className="flex-1 gradient-accent text-primary-foreground">
+                {isEditing ? "Salvar Alterações" : "Criar Canal"}
+              </Button>
             </div>
           </div>
         </DialogContent>
