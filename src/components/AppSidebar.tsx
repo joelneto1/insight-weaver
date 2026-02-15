@@ -13,6 +13,7 @@ const NAV_SECTIONS = [
     items: [
       { label: "Dashboard", icon: LayoutDashboard, path: "/" },
       { label: "Kanban", icon: Columns3, path: "/kanban" },
+      { label: "Financeiro", icon: Wallet, path: "/financeiro" },
     ],
   },
   {
@@ -27,7 +28,6 @@ const NAV_SECTIONS = [
     title: "FERRAMENTAS",
     items: [
       { label: "Formulário", icon: FileText, path: "/formulario" },
-      { label: "Financeiro", icon: Wallet, path: "/financeiro" },
     ],
   },
   {
