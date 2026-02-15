@@ -3,19 +3,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { SAMPLE_CANAIS } from "@/lib/data";
+import { formatDate, formatCurrency as formatBRL } from "@/lib/utils";
 import {
     DollarSign, TrendingUp, TrendingDown, Plus, Trash2, ArrowUpRight, ArrowDownRight,
-    Repeat, CircleDot, Tv, PiggyBank, Wallet, BarChart3
+    Repeat, CircleDot, Tv, PiggyBank, Wallet, BarChart3, Globe
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     PieChart, Pie, Cell
 } from "recharts";
 
@@ -25,6 +27,8 @@ interface Transacao {
     tipo: "entrada" | "saida";
     categoria: string;
     valor: number;
+    valor_usd?: number | null;
+    cotacao_dolar?: number | null;
     descricao: string | null;
     canal_nome: string | null;
     recorrente: boolean;
@@ -40,12 +44,28 @@ const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "O
 const EMPTY_FORM = {
     tipo: "entrada" as "entrada" | "saida",
     categoria: "",
-    valor: "",
+    valor: "",        // String mascarada: "1.000,00"
+    valorUsd: "",     // String mascarada
+    cotacao: "",      // String mascarada
     descricao: "",
     canal_nome: "",
     recorrente: false,
     data: new Date().toISOString().split("T")[0],
 };
+
+// Mask util for inputs
+const formatCurrencyInput = (value: string) => {
+    const onlyDigits = value.replace(/\D/g, "");
+    const numberValue = Number(onlyDigits) / 100;
+    return numberValue.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+const parseCurrency = (value: string) => {
+    if (!value) return 0;
+    return Number(value.replace(/\./g, "").replace(",", ".")) || 0;
+};
+
+const fmtUsd = (v: number) => v.toLocaleString("en-US", { style: "currency", currency: "USD" });
 
 export default function Financeiro() {
     const { user } = useAuth();
@@ -60,6 +80,21 @@ export default function Financeiro() {
     useEffect(() => {
         if (user) fetchTransacoes();
     }, [user]);
+
+    // Auto-calculate BRL when USD or Rate changes
+    useEffect(() => {
+        if (form.tipo === "entrada" && form.categoria === "Adsense") {
+            const usd = parseCurrency(form.valorUsd);
+            const rate = parseCurrency(form.cotacao);
+            if (usd > 0 && rate > 0) {
+                const brl = usd * rate;
+                setForm(prev => ({
+                    ...prev,
+                    valor: brl.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                }));
+            }
+        }
+    }, [form.valorUsd, form.cotacao, form.tipo, form.categoria]);
 
     const fetchTransacoes = async () => {
         if (!user) return;
@@ -83,17 +118,25 @@ export default function Financeiro() {
             toast({ title: "Selecione o canal", description: "Entradas precisam estar vinculadas a um canal.", variant: "destructive" });
             return;
         }
+
         setSaving(true);
+        const valorNumber = parseCurrency(form.valor);
+        const usdNumber = form.categoria === "Adsense" ? parseCurrency(form.valorUsd) : null;
+        const cotacaoNumber = form.categoria === "Adsense" ? parseCurrency(form.cotacao) : null;
+
         const { error } = await supabase.from("financeiro").insert({
             user_id: user.id,
             tipo: form.tipo,
             categoria: form.categoria,
-            valor: parseFloat(form.valor),
+            valor: valorNumber,
+            valor_usd: usdNumber,
+            cotacao_dolar: cotacaoNumber,
             descricao: form.descricao || null,
             canal_nome: form.tipo === "entrada" ? form.canal_nome : null,
             recorrente: form.tipo === "saida" ? form.recorrente : false,
             data: form.data,
         });
+
         if (error) {
             toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
         } else {
@@ -117,13 +160,16 @@ export default function Financeiro() {
         setDeleteId(null);
     };
 
-    // === Computed Data ===
+    const handleCurrencyChange = (field: "valor" | "valorUsd" | "cotacao", value: string) => {
+        setForm(prev => ({ ...prev, [field]: formatCurrencyInput(value) }));
+    };
+
     const totalEntradas = useMemo(() => transacoes.filter(t => t.tipo === "entrada").reduce((s, t) => s + Number(t.valor), 0), [transacoes]);
     const totalSaidas = useMemo(() => transacoes.filter(t => t.tipo === "saida").reduce((s, t) => s + Number(t.valor), 0), [transacoes]);
+    const totalUsd = useMemo(() => transacoes.reduce((s, t) => s + (Number(t.valor_usd) || 0), 0), [transacoes]);
     const saldo = totalEntradas - totalSaidas;
     const taxaPoupanca = totalEntradas > 0 ? Math.round((saldo / totalEntradas) * 100) : 0;
 
-    // Monthly chart data
     const chartData = useMemo(() => {
         const now = new Date();
         const months: { name: string; entradas: number; saidas: number }[] = [];
@@ -137,7 +183,6 @@ export default function Financeiro() {
         return months;
     }, [transacoes]);
 
-    // Per-channel income
     const canalData = useMemo(() => {
         const map: Record<string, number> = {};
         transacoes.filter(t => t.tipo === "entrada" && t.canal_nome).forEach(t => {
@@ -148,11 +193,8 @@ export default function Financeiro() {
 
     const CORES_PIE = ["#06b6d4", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#3b82f6"];
 
-    const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-
     return (
         <div className="p-4 md:p-6 lg:p-8 space-y-6">
-            {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
                     <h1 className="text-2xl font-extrabold text-foreground flex items-center gap-2">
@@ -165,40 +207,35 @@ export default function Financeiro() {
                 </Button>
             </div>
 
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 {[
                     { label: "Receita Total", value: totalEntradas, icon: TrendingUp, cls: "stat-card-emerald", iconBg: "bg-emerald-500/20", iconColor: "text-emerald-400" },
                     { label: "Despesa Total", value: totalSaidas, icon: TrendingDown, cls: "stat-card-amber", iconBg: "bg-red-500/20", iconColor: "text-red-400" },
                     { label: "Saldo", value: saldo, icon: DollarSign, cls: saldo >= 0 ? "stat-card-cyan" : "stat-card-amber", iconBg: saldo >= 0 ? "bg-cyan-500/20" : "bg-red-500/20", iconColor: saldo >= 0 ? "text-cyan-400" : "text-red-400" },
-                    { label: "Taxa de Poupança", value: taxaPoupanca, icon: PiggyBank, cls: "stat-card-purple", iconBg: "bg-purple-500/20", iconColor: "text-purple-400", isTaxa: true },
+                    { label: "Taxa Poupança", value: taxaPoupanca, icon: PiggyBank, cls: "stat-card-purple", iconBg: "bg-purple-500/20", iconColor: "text-purple-400", isTaxa: true },
+                    { label: "Total em Dólar", value: totalUsd, icon: Globe, cls: "stat-card-indigo", iconBg: "bg-indigo-500/20", iconColor: "text-indigo-400", isUsd: true },
                 ].map((card, i) => (
-                    <motion.div key={card.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }} className={`${card.cls} rounded-xl p-5`}>
+                    <motion.div key={card.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className={`${card.cls} rounded-xl p-5`}>
                         <div className="flex items-center justify-between mb-3">
                             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{card.label}</span>
                             <div className={`w-10 h-10 rounded-xl ${card.iconBg} flex items-center justify-center`}>
                                 <card.icon className={`w-5 h-5 ${card.iconColor}`} />
                             </div>
                         </div>
-                        <p className="text-3xl font-extrabold text-foreground">
-                            {(card as any).isTaxa ? `${card.value}%` : fmt(card.value as number)}
+                        <p className="text-2xl lg:text-3xl font-extrabold text-foreground truncate" title={String((card as any).isUsd ? fmtUsd(card.value as number) : (card as any).isTaxa ? `${card.value}%` : formatBRL(card.value as number))}>
+                            {(card as any).isUsd ? fmtUsd(card.value as number) : (card as any).isTaxa ? `${card.value}%` : formatBRL(card.value as number)}
                         </p>
                     </motion.div>
                 ))}
             </div>
 
-            {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Bar Chart - Cash Flow */}
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="lg:col-span-2 bg-card border border-border/50 rounded-xl p-6">
                     <div className="flex items-center justify-between mb-6">
                         <div>
-                            <h2 className="text-lg font-bold text-foreground flex items-center gap-2"><BarChart3 className="w-5 h-5 text-primary" /> Fluxo de Caixa</h2>
-                            <p className="text-sm text-muted-foreground">Últimos 6 meses</p>
-                        </div>
-                        <div className="flex items-center gap-4 text-xs">
-                            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-400" /><span className="text-muted-foreground">Receitas</span></div>
-                            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-red-400" /><span className="text-muted-foreground">Despesas</span></div>
+                            <h2 className="text-lg font-bold text-foreground flex items-center gap-2"><BarChart3 className="w-5 h-5 text-primary" /> Fluxo de Caixa (R$)</h2>
+                            <p className="text-sm text-muted-foreground">Últimos 6 meses (baseado em conversão para Real)</p>
                         </div>
                     </div>
                     <ResponsiveContainer width="100%" height={260}>
@@ -206,17 +243,16 @@ export default function Financeiro() {
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsla(218,35%,20%,0.3)" />
                             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(215,25%,50%)" }} />
                             <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(215,25%,50%)" }} tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
-                            <Tooltip contentStyle={{ backgroundColor: "hsl(218,42%,12%)", border: "1px solid hsla(218,35%,20%,0.5)", borderRadius: "12px", color: "hsl(210,40%,95%)" }} formatter={(v: number) => fmt(v)} />
+                            <Tooltip contentStyle={{ backgroundColor: "hsl(218,42%,12%)", border: "1px solid hsla(218,35%,20%,0.5)", borderRadius: "12px", color: "hsl(210,40%,95%)" }} formatter={(v: number) => formatBRL(v)} />
                             <Bar dataKey="entradas" fill="#34d399" radius={[6, 6, 0, 0]} maxBarSize={40} />
                             <Bar dataKey="saidas" fill="#f87171" radius={[6, 6, 0, 0]} maxBarSize={40} />
                         </BarChart>
                     </ResponsiveContainer>
                 </motion.div>
 
-                {/* Donut - Per-channel income */}
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-card border border-border/50 rounded-xl p-6">
                     <h2 className="text-lg font-bold text-foreground mb-1">Receita por Canal</h2>
-                    <p className="text-sm text-muted-foreground mb-4">Distribuição de receita</p>
+                    <p className="text-sm text-muted-foreground mb-4">Total convertido (R$)</p>
                     {canalData.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-10 text-center">
                             <Tv className="w-10 h-10 text-muted-foreground/30 mb-3" />
@@ -229,14 +265,14 @@ export default function Financeiro() {
                                     <Pie data={canalData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} strokeWidth={0}>
                                         {canalData.map((_, i) => (<Cell key={i} fill={CORES_PIE[i % CORES_PIE.length]} />))}
                                     </Pie>
-                                    <Tooltip contentStyle={{ backgroundColor: "hsl(218,42%,12%)", border: "1px solid hsla(218,35%,20%,0.5)", borderRadius: "12px", color: "hsl(210,40%,95%)" }} formatter={(v: number) => fmt(v)} />
+                                    <Tooltip contentStyle={{ backgroundColor: "hsl(218,42%,12%)", border: "1px solid hsla(218,35%,20%,0.5)", borderRadius: "12px", color: "hsl(210,40%,95%)" }} formatter={(v: number) => formatBRL(v)} />
                                 </PieChart>
                             </ResponsiveContainer>
                             <div className="space-y-2 mt-2">
                                 {canalData.map((c, i) => (
                                     <div key={c.name} className="flex items-center justify-between text-sm">
                                         <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: CORES_PIE[i % CORES_PIE.length] }} /><span className="text-foreground font-medium truncate">{c.name}</span></div>
-                                        <span className="text-muted-foreground font-semibold">{fmt(c.value)}</span>
+                                        <span className="text-muted-foreground font-semibold">{formatBRL(c.value)}</span>
                                     </div>
                                 ))}
                             </div>
@@ -245,7 +281,6 @@ export default function Financeiro() {
                 </motion.div>
             </div>
 
-            {/* Transactions List */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-card border border-border/50 rounded-xl p-6">
                 <h2 className="text-lg font-bold text-foreground mb-5">Últimas Transações</h2>
                 {loading ? (
@@ -268,6 +303,7 @@ export default function Financeiro() {
                                         <p className="font-medium text-foreground text-sm truncate">{t.categoria}</p>
                                         {t.recorrente && <span title="Recorrente"><Repeat className="w-3 h-3 text-amber-400" /></span>}
                                         {!t.recorrente && t.tipo === "saida" && <span title="Pagamento único"><CircleDot className="w-3 h-3 text-muted-foreground" /></span>}
+                                        {t.valor_usd && <span title="Receita em Dólar" className="text-[10px] bg-indigo-500/20 text-indigo-400 px-1.5 rounded border border-indigo-500/30">USD</span>}
                                     </div>
                                     <p className="text-xs text-muted-foreground truncate">
                                         {t.canal_nome ? `📺 ${t.canal_nome}` : "Geral"}{t.descricao ? ` · ${t.descricao}` : ""}
@@ -275,9 +311,12 @@ export default function Financeiro() {
                                 </div>
                                 <div className="text-right shrink-0">
                                     <p className={`text-sm font-bold ${t.tipo === "entrada" ? "text-emerald-400" : "text-red-400"}`}>
-                                        {t.tipo === "entrada" ? "+" : "-"}{fmt(Number(t.valor))}
+                                        {t.tipo === "entrada" ? "+" : "-"}{formatBRL(Number(t.valor))}
                                     </p>
-                                    <p className="text-[10px] text-muted-foreground">{new Date(t.data + "T12:00:00").toLocaleDateString("pt-BR")}</p>
+                                    <div className="flex items-end flex-col">
+                                        <p className="text-[10px] text-muted-foreground">{formatDate(t.data)}</p>
+                                        {t.valor_usd && <p className="text-[10px] text-indigo-400 font-mono">{fmtUsd(t.valor_usd)}</p>}
+                                    </div>
                                 </div>
                                 <button onClick={() => setDeleteId(t.id)} className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100">
                                     <Trash2 className="w-4 h-4" />
@@ -288,12 +327,10 @@ export default function Financeiro() {
                 )}
             </motion.div>
 
-            {/* Add Transaction Modal */}
             <Dialog open={showModal} onOpenChange={setShowModal}>
-                <DialogContent className="bg-card border-border max-h-[90vh] overflow-y-auto">
+                <DialogContent className="bg-card border-border max-h-[90vh] overflow-y-auto w-full max-w-lg">
                     <DialogHeader><DialogTitle>Nova Transação</DialogTitle></DialogHeader>
                     <div className="space-y-4 mt-2">
-                        {/* Tipo toggle */}
                         <div className="flex rounded-lg overflow-hidden border border-border">
                             {(["entrada", "saida"] as const).map((t) => (
                                 <button key={t} onClick={() => setForm({ ...form, tipo: t, categoria: "", canal_nome: "" })}
@@ -303,10 +340,9 @@ export default function Financeiro() {
                             ))}
                         </div>
 
-                        {/* Categoria */}
                         <div>
                             <label className="text-sm font-medium text-foreground">Categoria</label>
-                            <Select value={form.categoria} onValueChange={(v) => setForm({ ...form, categoria: v })}>
+                            <Select value={form.categoria} onValueChange={(v) => setForm({ ...form, categoria: v, valorUsd: "", cotacao: "" })}>
                                 <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                                 <SelectContent>
                                     {(form.tipo === "entrada" ? CATEGORIAS_ENTRADA : CATEGORIAS_SAIDA).map((c) => (
@@ -316,7 +352,6 @@ export default function Financeiro() {
                             </Select>
                         </div>
 
-                        {/* Canal (only for income) */}
                         {form.tipo === "entrada" && (
                             <div>
                                 <label className="text-sm font-medium text-foreground">Canal</label>
@@ -331,9 +366,8 @@ export default function Financeiro() {
                             </div>
                         )}
 
-                        {/* Recorrente (only for expenses) */}
                         {form.tipo === "saida" && (
-                            <div className="flex items-center justify-between py-2">
+                            <div className="flex items-center justify-between py-2 border border-border/50 rounded-lg px-3 bg-secondary/20">
                                 <div>
                                     <p className="text-sm font-medium text-foreground">Despesa Recorrente?</p>
                                     <p className="text-xs text-muted-foreground">Ex: assinatura mensal de ferramenta</p>
@@ -342,27 +376,48 @@ export default function Financeiro() {
                             </div>
                         )}
 
-                        {/* Valor */}
+                        {form.tipo === "entrada" && form.categoria === "Adsense" && (
+                            <div className="grid grid-cols-2 gap-4 p-4 border border-indigo-500/30 bg-indigo-500/5 rounded-lg">
+                                <div className="col-span-2 text-xs font-semibold text-indigo-400 uppercase tracking-widest mb-1">Cálculo de Câmbio (USD → BRL)</div>
+                                <div>
+                                    <label className="text-sm font-medium text-foreground">Valor em Dólar ($)</label>
+                                    <Input placeholder="0,00" value={form.valorUsd} onChange={(e) => handleCurrencyChange("valorUsd", e.target.value)} className="mt-1 font-mono text-indigo-300" />
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-foreground">Cotação do Dia (R$)</label>
+                                    <Input placeholder="0,00" value={form.cotacao} onChange={(e) => handleCurrencyChange("cotacao", e.target.value)} className="mt-1 font-mono" />
+                                </div>
+                            </div>
+                        )}
+
                         <div>
-                            <label className="text-sm font-medium text-foreground">Valor (R$)</label>
-                            <Input type="number" min="0.01" step="0.01" placeholder="0,00" value={form.valor}
-                                onChange={(e) => setForm({ ...form, valor: e.target.value })} className="mt-1" />
+                            <label className="text-sm font-medium text-foreground">Valor Final (R$)</label>
+                            <Input
+                                placeholder="0,00"
+                                value={form.valor}
+                                readOnly={form.tipo === "entrada" && form.categoria === "Adsense"}
+                                onChange={(e) => handleCurrencyChange("valor", e.target.value)}
+                                className={`mt-1 text-lg font-bold ${form.tipo === "entrada" ? "text-emerald-400" : "text-red-400"} ${form.tipo === "entrada" && form.categoria === "Adsense" ? "bg-secondary/50 cursor-not-allowed" : ""}`}
+                            />
+                            {form.tipo === "entrada" && form.categoria === "Adsense" && <p className="text-xs text-muted-foreground mt-1">Calculado automaticamente: USD * Cotação</p>}
                         </div>
 
-                        {/* Descrição */}
                         <div>
-                            <label className="text-sm font-medium text-foreground">Descrição (opcional)</label>
-                            <Input placeholder="Ex: Pagamento mensal ChatGPT" value={form.descricao}
-                                onChange={(e) => setForm({ ...form, descricao: e.target.value })} className="mt-1" />
+                            <label className="text-sm font-medium text-foreground">Observações</label>
+                            <Textarea
+                                placeholder="Detalhes adicionais sobre esta transação..."
+                                value={form.descricao}
+                                onChange={(e) => setForm({ ...form, descricao: e.target.value })}
+                                className="mt-1"
+                                rows={3}
+                            />
                         </div>
 
-                        {/* Data */}
                         <div>
                             <label className="text-sm font-medium text-foreground">Data</label>
                             <Input type="date" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} className="mt-1" />
                         </div>
 
-                        {/* Actions */}
                         <div className="flex gap-3 pt-2">
                             <Button variant="outline" onClick={() => setShowModal(false)} className="flex-1">Cancelar</Button>
                             <Button onClick={handleSave} disabled={saving} className="flex-1 gradient-accent text-primary-foreground">
@@ -373,7 +428,6 @@ export default function Financeiro() {
                 </DialogContent>
             </Dialog>
 
-            {/* Delete confirmation */}
             <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
                 <AlertDialogContent className="bg-card border-border">
                     <AlertDialogHeader>

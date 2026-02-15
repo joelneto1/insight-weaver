@@ -3,6 +3,7 @@ import { Tv, Video, FileText, Upload, CheckCircle, TrendingUp, Clock, BarChart3,
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
+import { formatDate, formatCurrency } from "@/lib/utils";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 // Simulated production data for the chart
@@ -243,7 +244,7 @@ export default function Dashboard() {
                       <p className="text-xs text-muted-foreground">{canal?.nome}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-xs text-muted-foreground">{video.dataPostagem}</p>
+                      <p className="text-xs text-muted-foreground">{formatDate(video.dataPostagem)}</p>
                       <span className={`inline-block text-[10px] font-semibold mt-1 px-2 py-0.5 rounded-full ${video.status === "postado" ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"
                         }`}>
                         {STATUS_LABELS[video.status]}

@@ -69,6 +69,8 @@ export type Database = {
           updated_at: string | null
           user_id: string
           valor: number
+          valor_usd?: number | null
+          cotacao_dolar?: number | null
         }
         Insert: {
           canal_nome?: string | null
@@ -82,6 +84,8 @@ export type Database = {
           updated_at?: string | null
           user_id: string
           valor: number
+          valor_usd?: number | null
+          cotacao_dolar?: number | null
         }
         Update: {
           canal_nome?: string | null
@@ -95,6 +99,8 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
           valor?: number
+          valor_usd?: number | null
+          cotacao_dolar?: number | null
         }
         Relationships: []
       }
