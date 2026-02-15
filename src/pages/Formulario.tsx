@@ -73,13 +73,13 @@ export default function Formulario() {
     };
 
     return (
-        <div className="p-6 lg:p-8 space-y-6 max-w-2xl">
+        <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-2xl w-full mx-auto">
             <div className="flex items-center gap-2">
-                <FileText className="w-6 h-6 text-primary" />
-                <h1 className="text-2xl font-bold text-foreground">Formulário</h1>
+                <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+                <h1 className="text-xl sm:text-2xl font-bold text-foreground">Formulário</h1>
             </div>
 
-            <p className="text-muted-foreground text-sm">
+            <p className="text-muted-foreground text-xs sm:text-sm">
                 Preencha os campos abaixo para acionar uma automação no n8n.
             </p>
 
@@ -87,7 +87,7 @@ export default function Formulario() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, ease: "easeOut" }}
-                className="bg-card border border-border rounded-xl p-6 space-y-6"
+                className="bg-card border border-border rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6"
             >
                 <AnimatePresence mode="wait">
                     {sent ? (

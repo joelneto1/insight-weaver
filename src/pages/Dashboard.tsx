@@ -50,17 +50,17 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8">
+    <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 md:space-y-8">
       {/* Greeting */}
       <div>
-        <h1 className="text-xl md:text-2xl font-extrabold text-foreground truncate">
+        <h1 className="text-lg sm:text-xl md:text-2xl font-extrabold text-foreground truncate flex items-center gap-2">
           Olá, {profile?.display_name || user?.email?.split("@")[0] || "Usuário"} 👋
         </h1>
-        <p className="text-muted-foreground text-sm mt-1">Visão geral do seu pipeline de produção</p>
+        <p className="text-muted-foreground text-xs sm:text-sm mt-0.5 sm:mt-1">Visão geral do seu pipeline de produção</p>
       </div>
 
       {/* ===== CHANNEL CARDS (like social media cards in reference) ===== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {SAMPLE_CANAIS.map((canal, i) => {
           const style = CHANNEL_STYLES[i % CHANNEL_STYLES.length];
           const canalVideos = SAMPLE_VIDEOS.filter((v) => v.canalId === canal.id);
@@ -72,20 +72,20 @@ export default function Dashboard() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.08 }}
             >
-              <Link to="/canais" className="block bg-card border border-border/50 rounded-xl p-5 hover:border-primary/30 transition-all duration-300 group">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className={`w-10 h-10 rounded-full ${style.iconClass} flex items-center justify-center shrink-0`}>
-                    <style.icon className="w-5 h-5 text-white" />
+              <Link to="/canais" className="block bg-card border border-border/50 rounded-xl p-4 sm:p-5 hover:border-primary/30 transition-all duration-300 group">
+                <div className="flex items-center gap-3 mb-3 sm:mb-4">
+                  <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full ${style.iconClass} flex items-center justify-center shrink-0`}>
+                    <style.icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                   </div>
                   <div className="min-w-0">
                     <p className="font-semibold text-foreground text-sm truncate">{canal.nome}</p>
-                    <p className="text-xs text-muted-foreground">{canal.nicho}</p>
+                    <p className="text-xs text-muted-foreground truncate">{canal.nicho}</p>
                   </div>
                 </div>
                 <div className="flex items-end justify-between">
                   <div>
-                    <p className="text-2xl font-extrabold text-foreground">{canalVideos.length}</p>
-                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mt-0.5">VÍDEOS</p>
+                    <p className="text-xl sm:text-2xl font-extrabold text-foreground">{canalVideos.length}</p>
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mt-0.5">VÍDEOS</p>
                   </div>
                   <div className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${canalPostados > 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}`}>
                     {canalPostados > 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
@@ -102,12 +102,12 @@ export default function Dashboard() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.24 }}
-          className="highlight-card rounded-xl p-5 sm:col-span-2 lg:col-span-2"
+          className="highlight-card rounded-xl p-4 sm:p-5 sm:col-span-2 lg:col-span-2"
         >
-          <p className="text-sm font-medium text-white/80 mb-1">Pipeline Total</p>
-          <p className="text-xs text-white/60 mb-3">{new Date().toLocaleDateString("pt-BR", { year: "numeric", month: "long", day: "numeric" })}</p>
+          <p className="text-xs sm:text-sm font-medium text-white/80 mb-1">Pipeline Total</p>
+          <p className="text-[10px] sm:text-xs text-white/60 mb-2 sm:mb-3 capitalize">{new Date().toLocaleDateString("pt-BR", { weekday: 'short', day: 'numeric', month: 'short' })}</p>
           <div className="flex items-end justify-between">
-            <p className="text-4xl font-extrabold text-white">{totalVideos} <span className="text-lg font-medium text-white/70">vídeos</span></p>
+            <p className="text-3xl sm:text-4xl font-extrabold text-white">{totalVideos} <span className="text-base sm:text-lg font-medium text-white/70">vídeos</span></p>
             <div className="flex items-center gap-1 text-sm font-bold text-white bg-white/20 px-3 py-1.5 rounded-full backdrop-blur-sm">
               <TrendingUp className="w-4 h-4" />
               {taxaConclusao}%
@@ -117,22 +117,22 @@ export default function Dashboard() {
       </div>
 
       {/* ===== STAT CARDS ===== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {statCards.map((stat, i) => (
           <motion.div
             key={stat.label}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 + i * 0.06 }}
-            className={`${stat.colorClass} rounded-xl p-5 transition-all duration-300`}
+            className={`${stat.colorClass} rounded-xl p-3 sm:p-5 transition-all duration-300`}
           >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{stat.label}</span>
-              <div className={`w-10 h-10 rounded-xl ${stat.iconBg} flex items-center justify-center`}>
-                <stat.icon className={`w-5 h-5 ${stat.iconColor}`} />
+            <div className="flex items-center justify-between mb-2 sm:mb-3">
+              <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest truncate max-w-[80px] sm:max-w-none">{stat.label}</span>
+              <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl ${stat.iconBg} flex items-center justify-center shrink-0`}>
+                <stat.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${stat.iconColor}`} />
               </div>
             </div>
-            <p className="text-3xl font-extrabold text-foreground mb-1">{stat.value}</p>
+            <p className="text-xl sm:text-3xl font-extrabold text-foreground mb-1 truncate">{stat.value}</p>
             <div className={`flex items-center gap-1 text-xs font-semibold ${stat.positive ? 'text-emerald-400' : 'text-red-400'}`}>
               {stat.positive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
               <span>{stat.change}</span>
@@ -147,7 +147,7 @@ export default function Dashboard() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5 }}
-        className="bg-card border border-border/50 rounded-xl p-6"
+        className="bg-card border border-border/50 rounded-xl p-4 sm:p-6"
       >
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -161,7 +161,7 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-        <ResponsiveContainer width="100%" height={280}>
+        <ResponsiveContainer width="100%" height={220}>
           <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
@@ -213,14 +213,14 @@ export default function Dashboard() {
       </motion.div>
 
       {/* ===== BOTTOM ROW: Recent Activity + Progress ===== */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
 
         {/* Recent Orders (like reference) */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
-          className="bg-card border border-border/50 rounded-xl p-6"
+          className="bg-card border border-border/50 rounded-xl p-4 sm:p-6"
         >
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-lg font-bold text-foreground">Últimos Vídeos</h2>
@@ -262,7 +262,7 @@ export default function Dashboard() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.65 }}
-          className="bg-card border border-border/50 rounded-xl p-6"
+          className="bg-card border border-border/50 rounded-xl p-4 sm:p-6"
         >
           <h2 className="text-lg font-bold text-foreground mb-5">Progresso do Pipeline</h2>
           <div className="space-y-4">
