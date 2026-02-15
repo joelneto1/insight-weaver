@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Mail, Lock, User, Loader2, Eye, EyeOff, Facebook, Chrome, Github } from "lucide-react";
+import { Mail, Lock, User, Loader2, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/Logo";
@@ -198,26 +198,6 @@ export default function Auth() {
           </Button>
         </form>
 
-        <div className="mt-8 mb-6 relative flex items-center justify-center">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-border"></span>
-          </div>
-          <span className="relative bg-card px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Ou continue com
-          </span>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          <Button variant="outline" className="py-5 rounded-xl border-border hover:bg-secondary/50 transition-colors" onClick={() => toast({ description: "Em breve!", duration: 1500 })}>
-            <Chrome className="w-5 h-5" />
-          </Button>
-          <Button variant="outline" className="py-5 rounded-xl border-border hover:bg-secondary/50 transition-colors" onClick={() => toast({ description: "Em breve!", duration: 1500 })}>
-            <Github className="w-5 h-5" />
-          </Button>
-          <Button variant="outline" className="py-5 rounded-xl border-border hover:bg-secondary/50 transition-colors" onClick={() => toast({ description: "Em breve!", duration: 1500 })}>
-            <Facebook className="w-5 h-5 text-blue-600" />
-          </Button>
-        </div>
 
         <div className="mt-8 text-center text-sm">
           <span className="text-muted-foreground">

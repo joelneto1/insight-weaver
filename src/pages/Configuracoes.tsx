@@ -43,6 +43,17 @@ export default function Configuracoes() {
       }
 
       const file = event.target.files[0];
+
+      // Validate file type and size
+      const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+      const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+      if (file.size > MAX_SIZE) {
+        throw new Error("Arquivo muito grande. O tamanho máximo é 2MB.");
+      }
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        throw new Error("Tipo de arquivo não permitido. Use JPEG, PNG, WebP ou GIF.");
+      }
+
       const fileExt = file.name.split(".").pop();
       const fileName = `${user?.id}-${Math.random()}.${fileExt}`;
       const filePath = `${fileName}`;

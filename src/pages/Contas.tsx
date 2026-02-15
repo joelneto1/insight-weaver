@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { encryptText, decryptText } from "@/lib/crypto";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2, Eye, EyeOff, User, Mail, Phone, Lock, Globe, StickyNote, KeyRound, Copy, Check } from "lucide-react";
@@ -57,16 +58,26 @@ export default function Contas() {
     }, [user]);
 
     const fetchContas = async () => {
+        if (!user) return;
         setLoading(true);
         const { data, error } = await supabase
             .from("contas")
             .select("*")
+            .eq("user_id", user.id)
             .order("created_at", { ascending: false });
 
         if (error) {
             toast({ title: "Erro ao carregar contas", description: error.message, variant: "destructive" });
-        } else {
-            setContas(data || []);
+        } else if (data) {
+            const decrypted = await Promise.all(
+                data.map(async (conta) => ({
+                    ...conta,
+                    senha_email: conta.senha_email
+                        ? await decryptText(conta.senha_email, user.id)
+                        : null,
+                }))
+            );
+            setContas(decrypted);
         }
         setLoading(false);
     };
@@ -106,6 +117,10 @@ export default function Contas() {
 
         setSaving(true);
 
+        const encryptedSenha = form.senha_email
+            ? await encryptText(form.senha_email, user.id)
+            : null;
+
         if (editingId) {
             // Update
             const { error } = await supabase
@@ -113,7 +128,7 @@ export default function Contas() {
                 .update({
                     nick: form.nick,
                     email: form.email,
-                    senha_email: form.senha_email || null,
+                    senha_email: encryptedSenha,
                     telefone: form.telefone || null,
                     perfil_conectado: form.perfil_conectado || null,
                     plataforma: form.plataforma || "YouTube",
@@ -136,7 +151,7 @@ export default function Contas() {
                     user_id: user.id,
                     nick: form.nick,
                     email: form.email,
-                    senha_email: form.senha_email || null,
+                    senha_email: encryptedSenha,
                     telefone: form.telefone || null,
                     perfil_conectado: form.perfil_conectado || null,
                     plataforma: form.plataforma || "YouTube",

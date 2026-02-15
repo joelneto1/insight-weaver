@@ -32,7 +32,7 @@ export default function Formulario() {
 
         try {
             // Envia os dados para o webhook do n8n
-            const response = await fetch("https://n8n.joelneto.uk/webhook/formulario", {
+            const response = await fetch(import.meta.env.VITE_N8N_WEBHOOK_URL || "https://n8n.joelneto.uk/webhook/formulario", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
