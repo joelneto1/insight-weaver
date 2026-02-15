@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useCopy } from "@/hooks/use-copy";
 
 interface Conta {
     id: string;
@@ -47,6 +48,7 @@ export default function Contas() {
     const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [copiedField, setCopiedField] = useState<string | null>(null);
+    const { copyToClipboard } = useCopy();
 
     // Fetch contas
     useEffect(() => {
@@ -69,8 +71,8 @@ export default function Contas() {
         setLoading(false);
     };
 
-    const handleCopy = async (text: string, fieldId: string) => {
-        await navigator.clipboard.writeText(text);
+    const handleCopy = async (text: string, fieldId: string, label: string) => {
+        await copyToClipboard(text, label);
         setCopiedField(fieldId);
         setTimeout(() => setCopiedField(null), 2000);
     };
@@ -270,8 +272,9 @@ export default function Contas() {
                                         <Mail className="w-3.5 h-3.5 shrink-0" />
                                         <span className="truncate flex-1">{conta.email}</span>
                                         <button
-                                            onClick={() => handleCopy(conta.email, `email-${conta.id}`)}
+                                            onClick={() => handleCopy(conta.email, `email-${conta.id}`, "Email")}
                                             className="p-1 rounded hover:bg-secondary transition-colors shrink-0"
+                                            title="Copiar email"
                                         >
                                             {copiedField === `email-${conta.id}` ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
                                         </button>
@@ -290,8 +293,9 @@ export default function Contas() {
                                                 {showPasswords[conta.id] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                                             </button>
                                             <button
-                                                onClick={() => handleCopy(conta.senha_email!, `senha-${conta.id}`)}
+                                                onClick={() => handleCopy(conta.senha_email!, `senha-${conta.id}`, "Senha")}
                                                 className="p-1 rounded hover:bg-secondary transition-colors shrink-0"
+                                                title="Copiar senha"
                                             >
                                                 {copiedField === `senha-${conta.id}` ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
                                             </button>
@@ -303,8 +307,9 @@ export default function Contas() {
                                             <Phone className="w-3.5 h-3.5 shrink-0" />
                                             <span className="truncate flex-1">{conta.telefone}</span>
                                             <button
-                                                onClick={() => handleCopy(conta.telefone!, `tel-${conta.id}`)}
+                                                onClick={() => handleCopy(conta.telefone!, `tel-${conta.id}`, "Telefone")}
                                                 className="p-1 rounded hover:bg-secondary transition-colors shrink-0"
+                                                title="Copiar telefone"
                                             >
                                                 {copiedField === `tel-${conta.id}` ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
                                             </button>

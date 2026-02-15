@@ -41,7 +41,7 @@ export default function AppHeader() {
   const firstName = (profile?.display_name || user.email || "").split(" ")[0];
 
   return (
-    <header className="h-16 md:h-20 border-b border-border bg-card/50 backdrop-blur-sm flex items-center justify-between px-4 md:px-6 sticky top-0 z-20 gap-2 md:gap-4 transition-all duration-200">
+    <header className="h-16 md:h-20 border-b border-border/50 bg-background/80 backdrop-blur-md flex items-center justify-between px-4 md:px-6 sticky top-0 z-20 gap-2 md:gap-4 transition-all duration-200">
 
       {/* Mobile Menu Trigger */}
       <div className="md:hidden mr-2">
@@ -78,7 +78,7 @@ export default function AppHeader() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Pesquisar..."
-            className="pl-10 bg-background/50 border-border/50 focus:bg-background transition-all rounded-full h-9 text-sm"
+            className="pl-10 bg-secondary/50 border-border/30 focus:bg-secondary focus:border-primary/30 transition-all rounded-full h-9 text-sm"
           />
         </div>
 
@@ -96,10 +96,10 @@ export default function AppHeader() {
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-primary rounded-full w-9 h-9 md:w-10 md:h-10 hover:bg-secondary/50">
                   <MessageSquare className="w-5 h-5" />
-                  <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 md:w-2 md:h-2 bg-red-500 rounded-full border-2 border-card"></span>
+                  <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 md:w-2 md:h-2 bg-primary rounded-full border-2 border-background"></span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-80" align="end">
+              <PopoverContent className="w-80 bg-card border-border/50 backdrop-blur-md" align="end">
                 <div className="grid gap-4">
                   <div className="space-y-2">
                     <h4 className="font-medium leading-none">Mensagens</h4>
@@ -113,10 +113,10 @@ export default function AppHeader() {
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-primary rounded-full w-9 h-9 md:w-10 md:h-10 hover:bg-secondary/50">
                   <Bell className="w-5 h-5" />
-                  <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 md:w-2 md:h-2 bg-red-500 rounded-full border-2 border-card"></span>
+                  <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 md:w-2 md:h-2 bg-primary rounded-full border-2 border-background"></span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-80" align="end">
+              <PopoverContent className="w-80 bg-card border-border/50 backdrop-blur-md" align="end">
                 <div className="grid gap-4">
                   <div className="space-y-2">
                     <h4 className="font-medium leading-none">Notificações</h4>
@@ -127,20 +127,20 @@ export default function AppHeader() {
             </Popover>
           </div>
 
-          <div className="h-6 w-px bg-border/50 mx-1 hidden sm:block"></div>
+          <div className="h-6 w-px bg-border/30 mx-1 hidden sm:block"></div>
 
           {/* Profile Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-2 outline-none hover:opacity-80 transition-opacity pl-1">
-              <Avatar className="h-8 w-8 md:h-9 md:w-9 border-2 border-border/20 shadow-sm">
+              <Avatar className="h-8 w-8 md:h-9 md:w-9 border-2 border-primary/30 shadow-sm shadow-primary/10">
                 <AvatarImage src={profile?.avatar_url || undefined} className="object-cover" />
-                <AvatarFallback className="bg-gradient-to-br from-primary to-accent/50 text-primary-foreground text-xs font-bold">
+                <AvatarFallback className="bg-gradient-to-br from-primary to-blue-500 text-primary-foreground text-xs font-bold">
                   {initials}
                 </AvatarFallback>
               </Avatar>
               <ChevronDown className="w-4 h-4 text-muted-foreground hidden md:block" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 mt-2">
+            <DropdownMenuContent align="end" className="w-56 mt-2 bg-card border-border/50 backdrop-blur-md">
               <div className="flex items-center justify-start gap-2 p-2">
                 <div className="flex flex-col space-y-0.5 leading-none">
                   <p className="font-medium text-sm text-foreground">{profile?.display_name}</p>

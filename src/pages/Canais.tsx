@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { SAMPLE_CANAIS, SAMPLE_VIDEOS, STATUS_LABELS, STATUS_COLORS, type Canal, type VideoStatus } from "@/lib/data";
-import { Plus, Settings2, Tv, Globe, Clock, Mail, Edit2 } from "lucide-react";
+import { Plus, Settings2, Tv, Globe, Clock, Mail, Edit2, Copy, Check, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useCopy } from "@/hooks/use-copy";
+import { useToast } from "@/hooks/use-toast";
 
 const INITIAL_CANAL_STATE = {
   nome: "", idioma: "Português", horarioPostagem: "19:00",
@@ -20,6 +23,10 @@ export default function Canais() {
   const [isEditing, setIsEditing] = useState(false);
   const [selectedCanal, setSelectedCanal] = useState<string>(canais[0]?.id || "");
   const [formData, setFormData] = useState(INITIAL_CANAL_STATE);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const { copyToClipboard } = useCopy();
+  const { toast } = useToast();
 
   const canal = canais.find((c) => c.id === selectedCanal);
   const canalVideos = SAMPLE_VIDEOS.filter((v) => v.canalId === selectedCanal);
@@ -50,14 +57,31 @@ export default function Canais() {
       setCanais((prev) =>
         prev.map((c) => (c.id === canal.id ? { ...c, ...formData } : c))
       );
+      toast({ title: "Canal atualizado", description: "As informações foram salvas com sucesso." });
     } else {
       // Create new canal
       const newCanal: Canal = { id: `c${Date.now()}`, ...formData };
       setCanais((prev) => [...prev, newCanal]);
       setSelectedCanal(newCanal.id);
+      toast({ title: "Canal criado", description: "Novo canal adicionado com sucesso." });
     }
 
     setShowModal(false);
+  };
+
+  const handleDelete = () => {
+    if (!deleteId) return;
+
+    const newCanais = canais.filter((c) => c.id !== deleteId);
+    setCanais(newCanais);
+
+    // Se deletou o canal selecionado, seleciona outro (o primeiro disponível ou nada)
+    if (selectedCanal === deleteId) {
+      setSelectedCanal(newCanais.length > 0 ? newCanais[0].id : "");
+    }
+
+    setDeleteId(null);
+    toast({ title: "Canal excluído", description: "O canal foi removido permanentemente." });
   };
 
   return (
@@ -87,7 +111,9 @@ export default function Canais() {
             </SelectContent>
           </Select>
         ) : (
-          <p className="text-muted-foreground text-sm">Nenhum canal cadastrado.</p>
+          <div className="p-4 border border-dashed border-border rounded-lg bg-secondary/20 text-center w-full">
+            <p className="text-muted-foreground text-sm">Nenhum canal cadastrado. Crie um novo canal para começar.</p>
+          </div>
         )}
       </div>
 
@@ -98,23 +124,44 @@ export default function Canais() {
           animate={{ opacity: 1, y: 0 }}
           className="bg-card border border-border rounded-xl p-6 space-y-5"
         >
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between flex-wrap gap-4">
             <div className="flex items-start gap-3">
-              <Tv className="w-5 h-5 text-primary mt-0.5" />
+              <Tv className="w-5 h-5 text-primary mt-1" />
               <div>
-                <h2 className="text-xl font-bold text-foreground">{canal.nome}</h2>
+                <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                  {canal.nome}
+                  <button
+                    onClick={() => copyToClipboard(canal.nome, "Nome do Canal")}
+                    title="Copiar nome do canal"
+                    className="opacity-50 hover:opacity-100 transition-opacity"
+                  >
+                    <Copy className="w-4 h-4 text-muted-foreground hover:text-primary" />
+                  </button>
+                </h2>
                 <div className="flex flex-wrap gap-4 mt-2 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1"><Globe className="w-3.5 h-3.5" />{canal.idioma}</span>
                   <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{canal.horarioPostagem}</span>
-                  <span className="flex items-center gap-1"><Mail className="w-3.5 h-3.5" />{canal.email}</span>
+                  <span
+                    className="flex items-center gap-1 cursor-pointer hover:text-primary transition-colors group"
+                    onClick={() => copyToClipboard(canal.email, "Email")}
+                    title="Copiar Email"
+                  >
+                    <Mail className="w-3.5 h-3.5" />{canal.email}
+                    <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
+                  </span>
                   <span>{canal.videosPostados} vídeos postados</span>
                 </div>
               </div>
             </div>
 
-            <Button variant="outline" size="sm" onClick={handleOpenEdit} className="gap-2">
-              <Edit2 className="w-4 h-4" /> Editar Canal
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleOpenEdit} className="gap-2">
+                <Edit2 className="w-4 h-4" /> Editar Canal
+              </Button>
+              <Button variant="destructive" size="sm" onClick={() => setDeleteId(canal.id)} className="gap-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 border-red-500/20 hover:border-red-500/30">
+                <Trash2 className="w-4 h-4" /> Excluir
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -131,10 +178,17 @@ export default function Canais() {
 
           <p className="text-xs text-primary font-medium">📅 Frequência: {canal.frequencia}</p>
 
-          <div className="bg-status-planning/10 border-l-4 border-status-planning rounded p-3">
+          <div className="bg-status-planning/10 border-l-4 border-status-planning rounded p-3 relative group">
             <p className="text-sm text-foreground">
               Nicho: {canal.nicho}, Subnicho: {canal.subnicho}, Micronicho: {canal.micronicho}
             </p>
+            <button
+              onClick={() => copyToClipboard(`Nicho: ${canal.nicho}, Subnicho: ${canal.subnicho}, Micronicho: ${canal.micronicho}`, "Informações de Nicho")}
+              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-background/50 rounded hover:bg-background"
+              title="Copiar Nicho"
+            >
+              <Copy className="w-3 h-3 text-muted-foreground" />
+            </button>
           </div>
         </motion.div>
       )}
@@ -207,6 +261,23 @@ export default function Canais() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Canal?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o canal <strong>{canais.find(c => c.id === deleteId)?.nome}</strong>? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

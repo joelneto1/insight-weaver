@@ -3,9 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tv, Mail, Lock, User, Loader2 } from "lucide-react";
+import { Mail, Lock, User, Loader2, Eye, EyeOff, Facebook, Chrome, Github } from "lucide-react";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
+import { Logo } from "@/components/Logo";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -13,6 +14,7 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -46,6 +48,21 @@ export default function Auth() {
     setLoading(false);
   };
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      toast({ title: "Informe seu email", description: "Digite seu email no campo acima para receber o link de redefinição.", variant: "destructive" });
+      return;
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin,
+    });
+    if (error) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Email enviado!", description: "Verifique sua caixa de entrada para redefinir a senha." });
+    }
+  };
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session) {
@@ -57,74 +74,169 @@ export default function Auth() {
   }, [navigate]);
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden transition-colors duration-500">
+
+      {/* Decorative Elements (Doodles) - Updated Colors */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {/* Left Side Shapes */}
+        <motion.div
+          initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}
+          className="absolute top-1/4 left-10 md:left-20"
+        >
+          <div className="w-16 h-16 border-2 border-dashed border-primary/20 rounded-full" />
+          <div className="w-8 h-8 bg-accent/20 rounded-full absolute -top-4 -right-4" />
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+          className="absolute bottom-1/4 left-10 md:left-32 hidden md:block"
+        >
+          <div className="w-24 h-32 bg-secondary rounded-t-full relative pattern-dots opacity-50" />
+          <div className="w-12 h-12 border-2 border-primary/30 absolute -right-6 top-10 rounded-lg transform rotate-12" />
+        </motion.div>
+
+        {/* Right Side Shapes */}
+        <motion.div
+          initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }}
+          className="absolute top-20 right-10 md:right-32 hidden md:block"
+        >
+          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/10 to-accent/10 blur-xl"></div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
+          className="absolute bottom-20 right-10 md:right-20 hidden lg:block"
+        >
+          <div className="w-20 h-40 bg-accent/10 rounded-t-full relative opacity-90 overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent"></div>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Main Login Card */}
       <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.4 }}
+        className="w-full max-w-[420px] bg-card rounded-3xl shadow-xl p-8 md:p-10 relative z-10 border border-border"
       >
         <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl gradient-accent flex items-center justify-center mx-auto mb-4">
-            <Tv className="w-7 h-7 text-primary-foreground" />
+          <div className="flex justify-center mb-6">
+            <Logo className="w-16 h-16 shadow-lg shadow-primary/10 rounded-xl" />
           </div>
-          <h1 className="text-3xl font-bold text-foreground">DarkTube</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {isLogin ? "Entre na sua conta" : "Crie sua conta"}
+          <h1 className="text-2xl font-bold text-foreground mb-2">
+            {isLogin ? "Bem-vindo de Volta" : "Criar Conta"}
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            {isLogin ? "Ei, insira seus detalhes para entrar na sua conta" : "Preencha os dados abaixo para começar"}
           </p>
         </div>
 
-        <div className="bg-card border border-border rounded-2xl p-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {!isLogin && (
+            <div className="space-y-1">
+              <div className="relative group">
                 <Input
-                  placeholder="Nome de exibição"
+                  className="pl-4 pr-10 py-6 rounded-xl border-input bg-secondary/30 focus:bg-background focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+                  placeholder="Nome de Exibição"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  className="pl-10"
                 />
+                <User className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
               </div>
-            )}
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            </div>
+          )}
+
+          <div className="space-y-1">
+            <div className="relative group">
               <Input
                 type="email"
-                placeholder="E-mail"
+                className="pl-4 pr-10 py-6 rounded-xl border-input bg-secondary/30 focus:bg-background focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+                placeholder="Insira Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="pl-10"
               />
+              <Mail className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
             </div>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          </div>
+
+          <div className="space-y-1">
+            <div className="relative group">
               <Input
-                type="password"
+                type={showPassword ? "text" : "password"}
+                className="pl-4 pr-10 py-6 rounded-xl border-input bg-secondary/30 focus:bg-background focus:ring-2 focus:ring-primary/20 transition-all font-medium"
                 placeholder="Senha"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
-                className="pl-10"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors z-10 p-1"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
             </div>
-            <Button type="submit" disabled={loading} className="w-full gradient-accent text-primary-foreground">
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : isLogin ? "Entrar" : "Criar Conta"}
-            </Button>
-          </form>
-
-          <div className="mt-4 text-center">
-            <button
-              type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-sm text-primary hover:underline"
-            >
-              {isLogin ? "Não tem conta? Registre-se" : "Já tem conta? Entre"}
-            </button>
+            {isLogin && (
+              <div className="flex justify-end pt-1">
+                <button type="button" onClick={handleForgotPassword} className="text-xs font-medium text-muted-foreground hover:text-primary transition-colors">
+                  Esqueceu sua senha?
+                </button>
+              </div>
+            )}
           </div>
+
+          <Button
+            type="submit"
+            disabled={loading}
+            className="w-full gradient-accent text-primary-foreground font-semibold py-6 rounded-xl shadow-lg shadow-primary/10 transition-all hover:scale-[1.02] active:scale-[0.98]"
+          >
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (isLogin ? "Entrar" : "Cadastrar")}
+          </Button>
+        </form>
+
+        <div className="mt-8 mb-6 relative flex items-center justify-center">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-border"></span>
+          </div>
+          <span className="relative bg-card px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Ou continue com
+          </span>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <Button variant="outline" className="py-5 rounded-xl border-border hover:bg-secondary/50 transition-colors" onClick={() => toast({ description: "Em breve!", duration: 1500 })}>
+            <Chrome className="w-5 h-5" />
+          </Button>
+          <Button variant="outline" className="py-5 rounded-xl border-border hover:bg-secondary/50 transition-colors" onClick={() => toast({ description: "Em breve!", duration: 1500 })}>
+            <Github className="w-5 h-5" />
+          </Button>
+          <Button variant="outline" className="py-5 rounded-xl border-border hover:bg-secondary/50 transition-colors" onClick={() => toast({ description: "Em breve!", duration: 1500 })}>
+            <Facebook className="w-5 h-5 text-blue-600" />
+          </Button>
+        </div>
+
+        <div className="mt-8 text-center text-sm">
+          <span className="text-muted-foreground">
+            {isLogin ? "Não tem uma conta?" : "Já tem uma conta?"}
+          </span>{" "}
+          <button
+            type="button"
+            onClick={() => setIsLogin(!isLogin)}
+            className="font-bold text-primary hover:underline transition-all"
+          >
+            {isLogin ? "Crie agora" : "Entre aqui"}
+          </button>
         </div>
       </motion.div>
+
+      {/* Footer Text */}
+      <div className="absolute bottom-4 text-center w-full text-xs text-muted-foreground/50 pointer-events-none">
+        DarkTube © 2026 | Política de Privacidade
+      </div>
     </div>
   );
 }

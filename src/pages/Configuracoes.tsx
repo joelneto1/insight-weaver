@@ -6,19 +6,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Configuracoes() {
   const { profile, user, refreshProfile } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
   const { toast } = useToast();
-
-  const [dark, setDark] = useState(() => {
-    if (typeof window !== "undefined") {
-      return document.documentElement.classList.contains("dark");
-    }
-    return true;
-  });
 
   const [displayName, setDisplayName] = useState(profile?.display_name || "");
   const [bio, setBio] = useState(profile?.bio || "");
@@ -40,11 +35,6 @@ export default function Configuracoes() {
     }
   }, [profile]);
 
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-    localStorage.setItem("theme", dark ? "dark" : "light");
-  }, [dark]);
-
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     try {
       setUploading(true);
@@ -61,14 +51,11 @@ export default function Configuracoes() {
         .from("avatars")
         .upload(filePath, file);
 
-      if (uploadError) {
-        throw uploadError;
-      }
+      if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
       setAvatarUrl(data.publicUrl);
 
-      // Auto-save avatar URL
       if (user) {
         await supabase
           .from("profiles")
@@ -78,8 +65,9 @@ export default function Configuracoes() {
       }
 
       toast({ title: "Avatar atualizado!", description: "Sua foto de perfil foi alterada." });
-    } catch (error: any) {
-      toast({ title: "Erro no upload", description: error.message, variant: "destructive" });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Erro desconhecido no upload.";
+      toast({ title: "Erro no upload", description: message, variant: "destructive" });
     } finally {
       setUploading(false);
     }
@@ -135,7 +123,6 @@ export default function Configuracoes() {
             <User className="w-5 h-5 text-primary" />
             <h2 className="text-lg font-semibold text-foreground">Perfil</h2>
           </div>
-          {/* Botão de Editar */}
           {!isEditing && (
             <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
               <Pencil className="w-4 h-4 mr-2" /> Editar Informações
@@ -154,20 +141,10 @@ export default function Configuracoes() {
             </Avatar>
             {isEditing && (
               <>
-                <label
-                  htmlFor="avatar-upload"
-                  className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                >
+                <label htmlFor="avatar-upload" className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                   <Camera className="w-8 h-8 text-white" />
                 </label>
-                <input
-                  id="avatar-upload"
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleAvatarUpload}
-                  disabled={uploading}
-                />
+                <input id="avatar-upload" type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={uploading} />
               </>
             )}
             {uploading && (
@@ -181,61 +158,31 @@ export default function Configuracoes() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-foreground">Nome de Exibição</label>
-                <Input
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="Seu nome"
-                  className="mt-1"
-                  maxLength={50}
-                  disabled={!isEditing}
-                />
+                <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Seu nome" className="mt-1" maxLength={50} disabled={!isEditing} />
               </div>
-
               <div>
                 <label className="text-sm font-medium text-foreground">E-mail</label>
                 <Input value={user?.email || ""} disabled className="mt-1 opacity-60 cursor-not-allowed" />
               </div>
-
               <div>
                 <label className="text-sm font-medium text-foreground">Telefone</label>
                 <div className="relative mt-1">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="(00) 00000-0000"
-                    className="pl-10"
-                    disabled={!isEditing}
-                  />
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(00) 00000-0000" className="pl-10" disabled={!isEditing} />
                 </div>
               </div>
-
               <div>
                 <label className="text-sm font-medium text-foreground">Data de Nascimento</label>
                 <div className="relative mt-1">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    type="date"
-                    value={birthDate}
-                    onChange={(e) => setBirthDate(e.target.value)}
-                    className="pl-10 block"
-                    disabled={!isEditing}
-                  />
+                  <Input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className="pl-10 block" disabled={!isEditing} />
                 </div>
               </div>
             </div>
 
             <div>
               <label className="text-sm font-medium text-foreground">Bio</label>
-              <Textarea
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                placeholder="Conte um pouco sobre você..."
-                className="mt-1"
-                maxLength={300}
-                rows={3}
-                disabled={!isEditing}
-              />
+              <Textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Conte um pouco sobre você..." className="mt-1" maxLength={300} rows={3} disabled={!isEditing} />
               {isEditing && <span className="text-xs text-muted-foreground">{bio.length}/300</span>}
             </div>
           </div>
@@ -243,9 +190,7 @@ export default function Configuracoes() {
 
         {isEditing && (
           <div className="flex gap-2 justify-end pt-2">
-            <Button variant="ghost" onClick={() => setIsEditing(false)} disabled={saving}>
-              Cancelar
-            </Button>
+            <Button variant="ghost" onClick={() => setIsEditing(false)} disabled={saving}>Cancelar</Button>
             <Button onClick={handleSaveProfile} disabled={saving} className="gradient-accent text-primary-foreground gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               Salvar Alterações
@@ -259,13 +204,13 @@ export default function Configuracoes() {
         <h2 className="text-lg font-semibold text-foreground">Aparência</h2>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {dark ? <Moon className="w-5 h-5 text-primary" /> : <Sun className="w-5 h-5 text-status-planning" />}
+            {isDark ? <Moon className="w-5 h-5 text-primary" /> : <Sun className="w-5 h-5 text-status-planning" />}
             <div>
               <p className="font-medium text-foreground">Modo Escuro</p>
               <p className="text-sm text-muted-foreground">Alternar entre tema claro e escuro</p>
             </div>
           </div>
-          <Switch checked={dark} onCheckedChange={setDark} />
+          <Switch checked={isDark} onCheckedChange={toggleTheme} />
         </div>
       </div>
 
@@ -277,9 +222,7 @@ export default function Configuracoes() {
             <p className="font-medium text-foreground">Alterar Senha</p>
             <p className="text-sm text-muted-foreground">Enviaremos um link para redefinição por e-mail</p>
           </div>
-          <Button variant="outline" onClick={handleChangePassword}>
-            Redefinir Senha
-          </Button>
+          <Button variant="outline" onClick={handleChangePassword}>Redefinir Senha</Button>
         </div>
       </div>
     </div>
