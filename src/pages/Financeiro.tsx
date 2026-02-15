@@ -6,7 +6,7 @@ import { SAMPLE_CANAIS } from "@/lib/data";
 import { formatDate, formatCurrency as formatBRL } from "@/lib/utils";
 import {
     DollarSign, TrendingUp, TrendingDown, Plus, Trash2, ArrowUpRight, ArrowDownRight,
-    Repeat, CircleDot, Tv, PiggyBank, Wallet, BarChart3, Globe
+    Repeat, CircleDot, Tv, PiggyBank, Wallet, BarChart3, Globe, Pencil
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -76,6 +76,7 @@ export default function Financeiro() {
     const [form, setForm] = useState(EMPTY_FORM);
     const [saving, setSaving] = useState(false);
     const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [editingId, setEditingId] = useState<string | null>(null);
 
     useEffect(() => {
         if (user) fetchTransacoes();
@@ -86,12 +87,21 @@ export default function Financeiro() {
         if (form.tipo === "entrada" && form.categoria === "Adsense") {
             const usd = parseCurrency(form.valorUsd);
             const rate = parseCurrency(form.cotacao);
+            // Only auto-calculate if user is interacting with USD fields
+            // This simple check prevents overwriting if we just loaded an edit form and haven't touched USD values
+            // But actually, for edit mode, we want the existing BRL value unless they change USD.
+            // Since 'form' updates on load, this might trigger.
+            // However, the calculation is deteministic: BRL = USD * Rate. If data is consistent, it's fine.
             if (usd > 0 && rate > 0) {
                 const brl = usd * rate;
-                setForm(prev => ({
-                    ...prev,
-                    valor: brl.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                }));
+                // Check difference to avoid infinite loop or unnecessary updates
+                const currentBrl = parseCurrency(form.valor);
+                if (Math.abs(brl - currentBrl) > 0.01) {
+                    setForm(prev => ({
+                        ...prev,
+                        valor: brl.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    }));
+                }
             }
         }
     }, [form.valorUsd, form.cotacao, form.tipo, form.categoria]);
@@ -112,6 +122,28 @@ export default function Financeiro() {
         setLoading(false);
     };
 
+    const handleOpenNew = () => {
+        setEditingId(null);
+        setForm(EMPTY_FORM);
+        setShowModal(true);
+    };
+
+    const handleEdit = (t: Transacao) => {
+        setEditingId(t.id);
+        setForm({
+            tipo: t.tipo,
+            categoria: t.categoria,
+            valor: t.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 }),
+            valorUsd: t.valor_usd?.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) || "",
+            cotacao: t.cotacao_dolar?.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) || "",
+            descricao: t.descricao || "",
+            canal_nome: t.canal_nome || "",
+            recorrente: t.recorrente || false,
+            data: t.data,
+        });
+        setShowModal(true);
+    };
+
     const handleSave = async () => {
         if (!form.categoria || !form.valor || !user) return;
         if (form.tipo === "entrada" && !form.canal_nome) {
@@ -124,7 +156,7 @@ export default function Financeiro() {
         const usdNumber = form.categoria === "Adsense" ? parseCurrency(form.valorUsd) : null;
         const cotacaoNumber = form.categoria === "Adsense" ? parseCurrency(form.cotacao) : null;
 
-        const { error } = await supabase.from("financeiro").insert({
+        const payload = {
             user_id: user.id,
             tipo: form.tipo,
             categoria: form.categoria,
@@ -135,14 +167,24 @@ export default function Financeiro() {
             canal_nome: form.tipo === "entrada" ? form.canal_nome : null,
             recorrente: form.tipo === "saida" ? form.recorrente : false,
             data: form.data,
-        });
+        };
+
+        let error;
+        if (editingId) {
+            const { error: updateError } = await supabase.from("financeiro").update(payload).eq("id", editingId);
+            error = updateError;
+        } else {
+            const { error: insertError } = await supabase.from("financeiro").insert(payload);
+            error = insertError;
+        }
 
         if (error) {
             toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
         } else {
-            toast({ title: "Transação registrada!" });
+            toast({ title: editingId ? "Atualizado com sucesso!" : "Transação registrada!" });
             setShowModal(false);
             setForm(EMPTY_FORM);
+            setEditingId(null);
             fetchTransacoes();
         }
         setSaving(false);
@@ -202,7 +244,7 @@ export default function Financeiro() {
                     </h1>
                     <p className="text-sm text-muted-foreground mt-1">Controle de receitas e despesas dos seus canais</p>
                 </div>
-                <Button onClick={() => { setForm(EMPTY_FORM); setShowModal(true); }} className="gradient-accent text-primary-foreground gap-2">
+                <Button onClick={handleOpenNew} className="gradient-accent text-primary-foreground gap-2">
                     <Plus className="w-4 h-4" /> Nova Transação
                 </Button>
             </div>
@@ -289,7 +331,7 @@ export default function Financeiro() {
                     <div className="text-center py-12">
                         <DollarSign className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
                         <p className="text-muted-foreground">Nenhuma transação registrada ainda.</p>
-                        <Button onClick={() => setShowModal(true)} className="mt-4 gradient-accent text-primary-foreground gap-2"><Plus className="w-4 h-4" /> Registrar Primeira</Button>
+                        <Button onClick={handleOpenNew} className="mt-4 gradient-accent text-primary-foreground gap-2"><Plus className="w-4 h-4" /> Registrar Primeira</Button>
                     </div>
                 ) : (
                     <div className="space-y-2">
@@ -318,9 +360,14 @@ export default function Financeiro() {
                                         {t.valor_usd && <p className="text-[10px] text-indigo-400 font-mono">{fmtUsd(t.valor_usd)}</p>}
                                     </div>
                                 </div>
-                                <button onClick={() => setDeleteId(t.id)} className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100">
-                                    <Trash2 className="w-4 h-4" />
-                                </button>
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => handleEdit(t)} title="Editar" className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
+                                        <Pencil className="w-4 h-4" />
+                                    </button>
+                                    <button onClick={() => setDeleteId(t.id)} title="Excluir" className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -329,7 +376,7 @@ export default function Financeiro() {
 
             <Dialog open={showModal} onOpenChange={setShowModal}>
                 <DialogContent className="bg-card border-border max-h-[90vh] overflow-y-auto w-full max-w-lg">
-                    <DialogHeader><DialogTitle>Nova Transação</DialogTitle></DialogHeader>
+                    <DialogHeader><DialogTitle>{editingId ? "Editar Transação" : "Nova Transação"}</DialogTitle></DialogHeader>
                     <div className="space-y-4 mt-2">
                         <div className="flex rounded-lg overflow-hidden border border-border">
                             {(["entrada", "saida"] as const).map((t) => (
@@ -421,7 +468,7 @@ export default function Financeiro() {
                         <div className="flex gap-3 pt-2">
                             <Button variant="outline" onClick={() => setShowModal(false)} className="flex-1">Cancelar</Button>
                             <Button onClick={handleSave} disabled={saving} className="flex-1 gradient-accent text-primary-foreground">
-                                {saving ? "Salvando..." : "Registrar"}
+                                {saving ? "Salvando..." : (editingId ? "Atualizar" : "Registrar")}
                             </Button>
                         </div>
                     </div>
