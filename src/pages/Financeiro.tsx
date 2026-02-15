@@ -50,7 +50,7 @@ const EMPTY_FORM = {
     descricao: "",
     canal_nome: "",
     recorrente: false,
-    data: new Date().toISOString().split("T")[0],
+    data: "", // will be set to todayFormatted() on open
 };
 
 // Mask util for inputs
@@ -66,6 +66,40 @@ const parseCurrency = (value: string) => {
 };
 
 const fmtUsd = (v: number) => v.toLocaleString("en-US", { style: "currency", currency: "USD" });
+
+// Date mask utilities: DD/MM/AAAA <-> YYYY-MM-DD
+const formatDateInput = (value: string) => {
+    const digits = value.replace(/\D/g, "");
+    let result = "";
+    if (digits.length > 0) result = digits.substring(0, 2);
+    if (digits.length > 2) result += "/" + digits.substring(2, 4);
+    if (digits.length > 4) result += "/" + digits.substring(4, 8);
+    return result;
+};
+
+// DD/MM/YYYY -> YYYY-MM-DD (for database)
+const dateToISO = (ddmmyyyy: string) => {
+    const parts = ddmmyyyy.split("/");
+    if (parts.length !== 3 || parts[2]?.length !== 4) return "";
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+};
+
+// YYYY-MM-DD -> DD/MM/YYYY (for display)
+const dateFromISO = (iso: string) => {
+    if (!iso) return "";
+    const [y, m, d] = iso.split("-");
+    if (!y || !m || !d) return iso;
+    return `${d}/${m}/${y}`;
+};
+
+// Get today as DD/MM/YYYY
+const todayFormatted = () => {
+    const now = new Date();
+    const d = String(now.getDate()).padStart(2, "0");
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const y = now.getFullYear();
+    return `${d}/${m}/${y}`;
+};
 
 export default function Financeiro() {
     const { user } = useAuth();
@@ -124,7 +158,7 @@ export default function Financeiro() {
 
     const handleOpenNew = () => {
         setEditingId(null);
-        setForm(EMPTY_FORM);
+        setForm({ ...EMPTY_FORM, data: todayFormatted() });
         setShowModal(true);
     };
 
@@ -139,7 +173,7 @@ export default function Financeiro() {
             descricao: t.descricao || "",
             canal_nome: t.canal_nome || "",
             recorrente: t.recorrente || false,
-            data: t.data,
+            data: dateFromISO(t.data),
         });
         setShowModal(true);
     };
@@ -166,7 +200,7 @@ export default function Financeiro() {
             descricao: form.descricao || null,
             canal_nome: form.tipo === "entrada" ? form.canal_nome : null,
             recorrente: form.tipo === "saida" ? form.recorrente : false,
-            data: form.data,
+            data: dateToISO(form.data),
         };
 
         let error;
@@ -461,8 +495,14 @@ export default function Financeiro() {
                         </div>
 
                         <div>
-                            <label className="text-sm font-medium text-foreground">Data</label>
-                            <Input type="date" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} className="mt-1" />
+                            <label className="text-sm font-medium text-foreground">Data (DD/MM/AAAA)</label>
+                            <Input
+                                placeholder="DD/MM/AAAA"
+                                value={form.data}
+                                maxLength={10}
+                                onChange={(e) => setForm({ ...form, data: formatDateInput(e.target.value) })}
+                                className="mt-1 font-mono"
+                            />
                         </div>
 
                         <div className="flex gap-3 pt-2">
