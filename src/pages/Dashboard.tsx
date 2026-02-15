@@ -50,7 +50,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 md:space-y-8">
+    <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-[100vw] overflow-x-hidden">
       {/* Greeting */}
       <div>
         <h1 className="text-lg sm:text-xl md:text-2xl font-extrabold text-foreground truncate flex items-center gap-2">
@@ -60,7 +60,7 @@ export default function Dashboard() {
       </div>
 
       {/* ===== CHANNEL CARDS (like social media cards in reference) ===== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 min-[380px]:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {SAMPLE_CANAIS.map((canal, i) => {
           const style = CHANNEL_STYLES[i % CHANNEL_STYLES.length];
           const canalVideos = SAMPLE_VIDEOS.filter((v) => v.canalId === canal.id);
@@ -117,7 +117,7 @@ export default function Dashboard() {
       </div>
 
       {/* ===== STAT CARDS ===== */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 min-[350px]:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {statCards.map((stat, i) => (
           <motion.div
             key={stat.label}

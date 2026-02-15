@@ -73,7 +73,7 @@ export default function Formulario() {
     };
 
     return (
-        <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-2xl w-full mx-auto">
+        <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-2xl w-full mx-auto max-w-[100vw] overflow-x-hidden">
             <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
                 <h1 className="text-xl sm:text-2xl font-bold text-foreground">Formulário</h1>
