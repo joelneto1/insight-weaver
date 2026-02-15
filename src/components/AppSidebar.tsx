@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Columns3, Tv, Sparkles, Settings, ChevronLeft, ChevronRight, KeyRound, LogOut, Sun, Moon, FileText } from "lucide-react";
+import { LayoutDashboard, Columns3, Tv, Sparkles, Settings, ChevronLeft, ChevronRight, KeyRound, LogOut, Sun, Moon, FileText, Wallet } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -27,6 +27,7 @@ const NAV_SECTIONS = [
     title: "FERRAMENTAS",
     items: [
       { label: "Formulário", icon: FileText, path: "/formulario" },
+      { label: "Financeiro", icon: Wallet, path: "/financeiro" },
     ],
   },
   {

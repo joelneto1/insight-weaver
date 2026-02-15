@@ -1,0 +1,391 @@
+import { useState, useEffect, useMemo } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { SAMPLE_CANAIS } from "@/lib/data";
+import {
+    DollarSign, TrendingUp, TrendingDown, Plus, Trash2, ArrowUpRight, ArrowDownRight,
+    Repeat, CircleDot, Tv, PiggyBank, Wallet, BarChart3
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import {
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+    PieChart, Pie, Cell
+} from "recharts";
+
+interface Transacao {
+    id: string;
+    user_id: string;
+    tipo: "entrada" | "saida";
+    categoria: string;
+    valor: number;
+    descricao: string | null;
+    canal_nome: string | null;
+    recorrente: boolean;
+    data: string;
+    created_at: string;
+}
+
+const CATEGORIAS_ENTRADA = ["Adsense", "Venda de Produtos", "Parcerias", "Outros"];
+const CATEGORIAS_SAIDA = ["Ferramentas", "Marketing", "Freelancer", "Impostos", "Hospedagem", "Outros"];
+
+const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+const EMPTY_FORM = {
+    tipo: "entrada" as "entrada" | "saida",
+    categoria: "",
+    valor: "",
+    descricao: "",
+    canal_nome: "",
+    recorrente: false,
+    data: new Date().toISOString().split("T")[0],
+};
+
+export default function Financeiro() {
+    const { user } = useAuth();
+    const { toast } = useToast();
+    const [transacoes, setTransacoes] = useState<Transacao[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [showModal, setShowModal] = useState(false);
+    const [form, setForm] = useState(EMPTY_FORM);
+    const [saving, setSaving] = useState(false);
+    const [deleteId, setDeleteId] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (user) fetchTransacoes();
+    }, [user]);
+
+    const fetchTransacoes = async () => {
+        if (!user) return;
+        setLoading(true);
+        const { data, error } = await supabase
+            .from("financeiro")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("data", { ascending: false });
+        if (error) {
+            toast({ title: "Erro ao carregar dados", description: error.message, variant: "destructive" });
+        } else {
+            setTransacoes((data as Transacao[]) || []);
+        }
+        setLoading(false);
+    };
+
+    const handleSave = async () => {
+        if (!form.categoria || !form.valor || !user) return;
+        if (form.tipo === "entrada" && !form.canal_nome) {
+            toast({ title: "Selecione o canal", description: "Entradas precisam estar vinculadas a um canal.", variant: "destructive" });
+            return;
+        }
+        setSaving(true);
+        const { error } = await supabase.from("financeiro").insert({
+            user_id: user.id,
+            tipo: form.tipo,
+            categoria: form.categoria,
+            valor: parseFloat(form.valor),
+            descricao: form.descricao || null,
+            canal_nome: form.tipo === "entrada" ? form.canal_nome : null,
+            recorrente: form.tipo === "saida" ? form.recorrente : false,
+            data: form.data,
+        });
+        if (error) {
+            toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+        } else {
+            toast({ title: "Transação registrada!" });
+            setShowModal(false);
+            setForm(EMPTY_FORM);
+            fetchTransacoes();
+        }
+        setSaving(false);
+    };
+
+    const handleDelete = async () => {
+        if (!deleteId) return;
+        const { error } = await supabase.from("financeiro").delete().eq("id", deleteId);
+        if (error) {
+            toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
+        } else {
+            toast({ title: "Transação excluída!" });
+            fetchTransacoes();
+        }
+        setDeleteId(null);
+    };
+
+    // === Computed Data ===
+    const totalEntradas = useMemo(() => transacoes.filter(t => t.tipo === "entrada").reduce((s, t) => s + Number(t.valor), 0), [transacoes]);
+    const totalSaidas = useMemo(() => transacoes.filter(t => t.tipo === "saida").reduce((s, t) => s + Number(t.valor), 0), [transacoes]);
+    const saldo = totalEntradas - totalSaidas;
+    const taxaPoupanca = totalEntradas > 0 ? Math.round((saldo / totalEntradas) * 100) : 0;
+
+    // Monthly chart data
+    const chartData = useMemo(() => {
+        const now = new Date();
+        const months: { name: string; entradas: number; saidas: number }[] = [];
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+            const entradas = transacoes.filter(t => t.tipo === "entrada" && t.data.startsWith(key)).reduce((s, t) => s + Number(t.valor), 0);
+            const saidas = transacoes.filter(t => t.tipo === "saida" && t.data.startsWith(key)).reduce((s, t) => s + Number(t.valor), 0);
+            months.push({ name: MESES[d.getMonth()], entradas, saidas });
+        }
+        return months;
+    }, [transacoes]);
+
+    // Per-channel income
+    const canalData = useMemo(() => {
+        const map: Record<string, number> = {};
+        transacoes.filter(t => t.tipo === "entrada" && t.canal_nome).forEach(t => {
+            map[t.canal_nome!] = (map[t.canal_nome!] || 0) + Number(t.valor);
+        });
+        return Object.entries(map).map(([name, value]) => ({ name, value }));
+    }, [transacoes]);
+
+    const CORES_PIE = ["#06b6d4", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#3b82f6"];
+
+    const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+    return (
+        <div className="p-4 md:p-6 lg:p-8 space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                    <h1 className="text-2xl font-extrabold text-foreground flex items-center gap-2">
+                        <Wallet className="w-7 h-7 text-primary" /> Financeiro
+                    </h1>
+                    <p className="text-sm text-muted-foreground mt-1">Controle de receitas e despesas dos seus canais</p>
+                </div>
+                <Button onClick={() => { setForm(EMPTY_FORM); setShowModal(true); }} className="gradient-accent text-primary-foreground gap-2">
+                    <Plus className="w-4 h-4" /> Nova Transação
+                </Button>
+            </div>
+
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                    { label: "Receita Total", value: totalEntradas, icon: TrendingUp, cls: "stat-card-emerald", iconBg: "bg-emerald-500/20", iconColor: "text-emerald-400" },
+                    { label: "Despesa Total", value: totalSaidas, icon: TrendingDown, cls: "stat-card-amber", iconBg: "bg-red-500/20", iconColor: "text-red-400" },
+                    { label: "Saldo", value: saldo, icon: DollarSign, cls: saldo >= 0 ? "stat-card-cyan" : "stat-card-amber", iconBg: saldo >= 0 ? "bg-cyan-500/20" : "bg-red-500/20", iconColor: saldo >= 0 ? "text-cyan-400" : "text-red-400" },
+                    { label: "Taxa de Poupança", value: taxaPoupanca, icon: PiggyBank, cls: "stat-card-purple", iconBg: "bg-purple-500/20", iconColor: "text-purple-400", isTaxa: true },
+                ].map((card, i) => (
+                    <motion.div key={card.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }} className={`${card.cls} rounded-xl p-5`}>
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{card.label}</span>
+                            <div className={`w-10 h-10 rounded-xl ${card.iconBg} flex items-center justify-center`}>
+                                <card.icon className={`w-5 h-5 ${card.iconColor}`} />
+                            </div>
+                        </div>
+                        <p className="text-3xl font-extrabold text-foreground">
+                            {(card as any).isTaxa ? `${card.value}%` : fmt(card.value as number)}
+                        </p>
+                    </motion.div>
+                ))}
+            </div>
+
+            {/* Charts Row */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Bar Chart - Cash Flow */}
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="lg:col-span-2 bg-card border border-border/50 rounded-xl p-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h2 className="text-lg font-bold text-foreground flex items-center gap-2"><BarChart3 className="w-5 h-5 text-primary" /> Fluxo de Caixa</h2>
+                            <p className="text-sm text-muted-foreground">Últimos 6 meses</p>
+                        </div>
+                        <div className="flex items-center gap-4 text-xs">
+                            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-400" /><span className="text-muted-foreground">Receitas</span></div>
+                            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-red-400" /><span className="text-muted-foreground">Despesas</span></div>
+                        </div>
+                    </div>
+                    <ResponsiveContainer width="100%" height={260}>
+                        <BarChart data={chartData} barGap={4}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsla(218,35%,20%,0.3)" />
+                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(215,25%,50%)" }} />
+                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(215,25%,50%)" }} tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
+                            <Tooltip contentStyle={{ backgroundColor: "hsl(218,42%,12%)", border: "1px solid hsla(218,35%,20%,0.5)", borderRadius: "12px", color: "hsl(210,40%,95%)" }} formatter={(v: number) => fmt(v)} />
+                            <Bar dataKey="entradas" fill="#34d399" radius={[6, 6, 0, 0]} maxBarSize={40} />
+                            <Bar dataKey="saidas" fill="#f87171" radius={[6, 6, 0, 0]} maxBarSize={40} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </motion.div>
+
+                {/* Donut - Per-channel income */}
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-card border border-border/50 rounded-xl p-6">
+                    <h2 className="text-lg font-bold text-foreground mb-1">Receita por Canal</h2>
+                    <p className="text-sm text-muted-foreground mb-4">Distribuição de receita</p>
+                    {canalData.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-10 text-center">
+                            <Tv className="w-10 h-10 text-muted-foreground/30 mb-3" />
+                            <p className="text-sm text-muted-foreground">Nenhuma receita registrada</p>
+                        </div>
+                    ) : (
+                        <>
+                            <ResponsiveContainer width="100%" height={180}>
+                                <PieChart>
+                                    <Pie data={canalData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} strokeWidth={0}>
+                                        {canalData.map((_, i) => (<Cell key={i} fill={CORES_PIE[i % CORES_PIE.length]} />))}
+                                    </Pie>
+                                    <Tooltip contentStyle={{ backgroundColor: "hsl(218,42%,12%)", border: "1px solid hsla(218,35%,20%,0.5)", borderRadius: "12px", color: "hsl(210,40%,95%)" }} formatter={(v: number) => fmt(v)} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                            <div className="space-y-2 mt-2">
+                                {canalData.map((c, i) => (
+                                    <div key={c.name} className="flex items-center justify-between text-sm">
+                                        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: CORES_PIE[i % CORES_PIE.length] }} /><span className="text-foreground font-medium truncate">{c.name}</span></div>
+                                        <span className="text-muted-foreground font-semibold">{fmt(c.value)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
+                    )}
+                </motion.div>
+            </div>
+
+            {/* Transactions List */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-card border border-border/50 rounded-xl p-6">
+                <h2 className="text-lg font-bold text-foreground mb-5">Últimas Transações</h2>
+                {loading ? (
+                    <div className="flex justify-center py-12"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
+                ) : transacoes.length === 0 ? (
+                    <div className="text-center py-12">
+                        <DollarSign className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+                        <p className="text-muted-foreground">Nenhuma transação registrada ainda.</p>
+                        <Button onClick={() => setShowModal(true)} className="mt-4 gradient-accent text-primary-foreground gap-2"><Plus className="w-4 h-4" /> Registrar Primeira</Button>
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        {transacoes.slice(0, 20).map((t) => (
+                            <div key={t.id} className="flex items-center gap-4 py-3 border-b border-border/30 last:border-0 group">
+                                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${t.tipo === "entrada" ? "bg-emerald-500/15" : "bg-red-500/15"}`}>
+                                    {t.tipo === "entrada" ? <ArrowUpRight className="w-4 h-4 text-emerald-400" /> : <ArrowDownRight className="w-4 h-4 text-red-400" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <p className="font-medium text-foreground text-sm truncate">{t.categoria}</p>
+                                        {t.recorrente && <span title="Recorrente"><Repeat className="w-3 h-3 text-amber-400" /></span>}
+                                        {!t.recorrente && t.tipo === "saida" && <span title="Pagamento único"><CircleDot className="w-3 h-3 text-muted-foreground" /></span>}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground truncate">
+                                        {t.canal_nome ? `📺 ${t.canal_nome}` : "Geral"}{t.descricao ? ` · ${t.descricao}` : ""}
+                                    </p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                    <p className={`text-sm font-bold ${t.tipo === "entrada" ? "text-emerald-400" : "text-red-400"}`}>
+                                        {t.tipo === "entrada" ? "+" : "-"}{fmt(Number(t.valor))}
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground">{new Date(t.data + "T12:00:00").toLocaleDateString("pt-BR")}</p>
+                                </div>
+                                <button onClick={() => setDeleteId(t.id)} className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100">
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </motion.div>
+
+            {/* Add Transaction Modal */}
+            <Dialog open={showModal} onOpenChange={setShowModal}>
+                <DialogContent className="bg-card border-border max-h-[90vh] overflow-y-auto">
+                    <DialogHeader><DialogTitle>Nova Transação</DialogTitle></DialogHeader>
+                    <div className="space-y-4 mt-2">
+                        {/* Tipo toggle */}
+                        <div className="flex rounded-lg overflow-hidden border border-border">
+                            {(["entrada", "saida"] as const).map((t) => (
+                                <button key={t} onClick={() => setForm({ ...form, tipo: t, categoria: "", canal_nome: "" })}
+                                    className={`flex-1 py-2.5 text-sm font-semibold transition-all ${form.tipo === t ? (t === "entrada" ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400") : "text-muted-foreground hover:bg-secondary/50"}`}>
+                                    {t === "entrada" ? "📈 Entrada" : "📉 Saída"}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Categoria */}
+                        <div>
+                            <label className="text-sm font-medium text-foreground">Categoria</label>
+                            <Select value={form.categoria} onValueChange={(v) => setForm({ ...form, categoria: v })}>
+                                <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                                <SelectContent>
+                                    {(form.tipo === "entrada" ? CATEGORIAS_ENTRADA : CATEGORIAS_SAIDA).map((c) => (
+                                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Canal (only for income) */}
+                        {form.tipo === "entrada" && (
+                            <div>
+                                <label className="text-sm font-medium text-foreground">Canal</label>
+                                <Select value={form.canal_nome} onValueChange={(v) => setForm({ ...form, canal_nome: v })}>
+                                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione o canal..." /></SelectTrigger>
+                                    <SelectContent>
+                                        {SAMPLE_CANAIS.map((c) => (
+                                            <SelectItem key={c.id} value={c.nome}>{c.nome}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+
+                        {/* Recorrente (only for expenses) */}
+                        {form.tipo === "saida" && (
+                            <div className="flex items-center justify-between py-2">
+                                <div>
+                                    <p className="text-sm font-medium text-foreground">Despesa Recorrente?</p>
+                                    <p className="text-xs text-muted-foreground">Ex: assinatura mensal de ferramenta</p>
+                                </div>
+                                <Switch checked={form.recorrente} onCheckedChange={(v) => setForm({ ...form, recorrente: v })} />
+                            </div>
+                        )}
+
+                        {/* Valor */}
+                        <div>
+                            <label className="text-sm font-medium text-foreground">Valor (R$)</label>
+                            <Input type="number" min="0.01" step="0.01" placeholder="0,00" value={form.valor}
+                                onChange={(e) => setForm({ ...form, valor: e.target.value })} className="mt-1" />
+                        </div>
+
+                        {/* Descrição */}
+                        <div>
+                            <label className="text-sm font-medium text-foreground">Descrição (opcional)</label>
+                            <Input placeholder="Ex: Pagamento mensal ChatGPT" value={form.descricao}
+                                onChange={(e) => setForm({ ...form, descricao: e.target.value })} className="mt-1" />
+                        </div>
+
+                        {/* Data */}
+                        <div>
+                            <label className="text-sm font-medium text-foreground">Data</label>
+                            <Input type="date" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} className="mt-1" />
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-3 pt-2">
+                            <Button variant="outline" onClick={() => setShowModal(false)} className="flex-1">Cancelar</Button>
+                            <Button onClick={handleSave} disabled={saving} className="flex-1 gradient-accent text-primary-foreground">
+                                {saving ? "Salvando..." : "Registrar"}
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete confirmation */}
+            <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+                <AlertDialogContent className="bg-card border-border">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir transação?</AlertDialogTitle>
+                        <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Excluir</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </div>
+    );
+}

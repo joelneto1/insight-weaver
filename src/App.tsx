@@ -15,6 +15,7 @@ import Configuracoes from "./pages/Configuracoes";
 import Contas from "./pages/Contas";
 import Auth from "./pages/Auth";
 import Formulario from "./pages/Formulario";
+import FinanceiroPage from "./pages/Financeiro";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,6 +43,7 @@ const App = () => (
                 <Route path="/contas" element={<Contas />} />
                 <Route path="/prompts" element={<Prompts />} />
                 <Route path="/formulario" element={<Formulario />} />
+                <Route path="/financeiro" element={<FinanceiroPage />} />
                 <Route path="/config" element={<Configuracoes />} />
               </Route>
               <Route path="*" element={<NotFound />} />

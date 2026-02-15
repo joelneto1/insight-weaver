@@ -56,6 +56,48 @@ export type Database = {
         }
         Relationships: []
       }
+      financeiro: {
+        Row: {
+          canal_nome: string | null
+          categoria: string
+          created_at: string | null
+          data: string
+          descricao: string | null
+          id: string
+          recorrente: boolean | null
+          tipo: string
+          updated_at: string | null
+          user_id: string
+          valor: number
+        }
+        Insert: {
+          canal_nome?: string | null
+          categoria: string
+          created_at?: string | null
+          data?: string
+          descricao?: string | null
+          id?: string
+          recorrente?: boolean | null
+          tipo: string
+          updated_at?: string | null
+          user_id: string
+          valor: number
+        }
+        Update: {
+          canal_nome?: string | null
+          categoria?: string
+          created_at?: string | null
+          data?: string
+          descricao?: string | null
+          id?: string
+          recorrente?: boolean | null
+          tipo?: string
+          updated_at?: string | null
+          user_id?: string
+          valor?: number
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
