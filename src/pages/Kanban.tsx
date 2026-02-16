@@ -10,6 +10,7 @@ import {
   DragOverEvent,
   DragEndEvent,
   closestCorners,
+  useDroppable
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -46,7 +47,7 @@ function KanbanCard({ video, isOverlay, onClickEdit, onClickDelete, onQuickMove 
 
   if (isOverlay) {
     return (
-      <div className="bg-card/95 backdrop-blur-sm shadow-2xl rounded-xl border-2 border-primary/40 p-4 w-[280px] cursor-grabbing relative z-50">
+      <div className="bg-card/95 backdrop-blur-sm shadow-2xl rounded-xl border-2 border-primary/40 p-4 w-[280px] cursor-grabbing relative z-50 transform rotate-2 scale-105">
         <div className={`absolute left-0 top-0 bottom-0 w-1.5 rounded-l-xl ${statusColor}`} />
         <CardContent video={video} canal={canal} />
       </div>
@@ -113,6 +114,46 @@ function CardContent({ video, canal, onClickEdit, onClickDelete }: any) {
   )
 }
 
+// --- Column Component (New) ---
+function KanbanColumn({ status, videos, onClickEdit, onClickDelete, onQuickMove }: { status: VideoStatus, videos: Video[], onClickEdit: (v: Video) => void, onClickDelete: (id: string) => void, onQuickMove: (v: Video, action: any) => void }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: status,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`min-w-[260px] sm:min-w-[280px] flex-1 bg-secondary/20 border-2 rounded-xl p-2 sm:p-3 snap-start h-fit transition-colors ${isOver ? 'border-primary/50 bg-primary/5' : 'border-border/50'}`}
+    >
+      {/* Column Header */}
+      <div className="flex items-center gap-2 mb-3 px-1">
+        <div className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[status]}`} />
+        <span className="text-sm font-semibold text-foreground">{STATUS_LABELS[status]}</span>
+        <span className="ml-auto text-xs bg-secondary px-2 py-0.5 rounded-full text-muted-foreground font-medium">{videos.length}</span>
+      </div>
+
+      <SortableContext id={status} items={videos.map(v => v.id)} strategy={verticalListSortingStrategy}>
+        <div className="space-y-3 min-h-[150px]">
+          {videos.map((video) => (
+            <KanbanCard
+              key={video.id}
+              video={video}
+              onClickEdit={() => onClickEdit(video)}
+              onClickDelete={() => onClickDelete(video.id)}
+              onQuickMove={(action) => onQuickMove(video, action)}
+            />
+          ))}
+          {videos.length === 0 && (
+            <div className="h-full min-h-[140px] rounded-lg border-2 border-dashed border-border/30 flex items-center justify-center text-muted-foreground/30 text-xs italic">
+              Arraste cards aqui
+            </div>
+          )}
+        </div>
+      </SortableContext>
+    </div>
+  );
+}
+
 // --- Main Kanban Component ---
 export default function Kanban() {
   const [videos, setVideos] = useState<Video[]>(SAMPLE_VIDEOS);
@@ -158,18 +199,28 @@ export default function Kanban() {
 
     // Find containers
     const activeVideo = videos.find(v => v.id === activeId);
-    const overVideo = videos.find(v => v.id === overId);
 
-    if (!activeVideo) return;
+    // Determine if dropping over a column or another card
+    let overStatus: VideoStatus | null = null;
 
-    const activeColumn = activeVideo.status;
-    const overColumn = overVideo ? overVideo.status : (COLUMNS.includes(overId as any) ? overId : null);
+    if (COLUMNS.includes(overId as any)) {
+      // Droving directly over a column container
+      overStatus = overId as VideoStatus;
+    } else {
+      // Dropping over a card
+      const overVideo = videos.find(v => v.id === overId);
+      if (overVideo) overStatus = overVideo.status;
+    }
 
-    if (activeColumn !== overColumn && overColumn) {
-      // Move between columns visually
+    if (!activeVideo || !overStatus) return;
+
+    const activeStatus = activeVideo.status;
+
+    // Immediate visual update if changing columns
+    if (activeStatus !== overStatus) {
       setVideos((prev) => {
         return prev.map(v => {
-          if (v.id === activeId) return { ...v, status: overColumn as VideoStatus };
+          if (v.id === activeId) return { ...v, status: overStatus as VideoStatus };
           return v;
         });
       });
@@ -261,33 +312,14 @@ export default function Kanban() {
       >
         <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-6 snap-x snap-mandatory -mx-3 px-3 sm:-mx-4 sm:px-4 lg:mx-0 lg:px-0">
           {COLUMNS.map((status) => (
-            <div key={status} className="min-w-[260px] sm:min-w-[280px] flex-1 bg-secondary/20 border border-border/50 rounded-xl p-2 sm:p-3 snap-start h-fit">
-              {/* Column Header */}
-              <div className="flex items-center gap-2 mb-3 px-1">
-                <div className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[status]}`} />
-                <span className="text-sm font-semibold text-foreground">{STATUS_LABELS[status]}</span>
-                <span className="ml-auto text-xs bg-secondary px-2 py-0.5 rounded-full text-muted-foreground font-medium">{columnsData[status].length}</span>
-              </div>
-
-              <SortableContext id={status} items={columnsData[status].map(v => v.id)} strategy={verticalListSortingStrategy}>
-                <div className="space-y-3 min-h-[100px]">
-                  {columnsData[status].map((video) => (
-                    <KanbanCard
-                      key={video.id}
-                      video={video}
-                      onClickEdit={() => handleOpenEdit(video)}
-                      onClickDelete={() => setDeleteId(video.id)}
-                      onQuickMove={(action) => handleQuickMove(video, action)}
-                    />
-                  ))}
-                  {columnsData[status].length === 0 && (
-                    <div className="h-24 rounded-lg border-2 border-dashed border-border/40 flex items-center justify-center text-muted-foreground/30 text-xs">
-                      Vazio
-                    </div>
-                  )}
-                </div>
-              </SortableContext>
-            </div>
+            <KanbanColumn
+              key={status}
+              status={status}
+              videos={columnsData[status]}
+              onClickEdit={handleOpenEdit}
+              onClickDelete={(id) => setDeleteId(id)}
+              onQuickMove={handleQuickMove}
+            />
           ))}
         </div>
 
@@ -330,7 +362,7 @@ export default function Kanban() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit/Create Dialog */}
+
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="bg-card border-border w-[calc(100%-1.5rem)] sm:w-full max-w-lg rounded-xl p-4 sm:p-6">
           <DialogHeader>
@@ -367,12 +399,11 @@ export default function Kanban() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete/Alert Dialog */}
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent className="bg-card border-border w-[calc(100%-1.5rem)] sm:w-full rounded-xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Vídeo?</AlertDialogTitle>
-            <AlertDialogDescription>Tem certeza que deseja excluir o vídeo? Esta ação não pode ser desfeita.</AlertDialogDescription>
+            <DialogTitle>Excluir Vídeo?</DialogTitle>
+            <DialogDescription>Tem certeza que deseja excluir o vídeo? Esta ação não pode ser desfeita.</DialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
