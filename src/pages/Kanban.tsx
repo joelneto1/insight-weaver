@@ -1,7 +1,22 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useMemo } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  useSensor,
+  useSensors,
+  MouseSensor,
+  TouchSensor,
+  defaultDropAnimationSideEffects,
+  DragStartEvent,
+  DragOverEvent,
+  DragEndEvent,
+  pointerWithin,
+} from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { createPortal } from "react-dom";
 import { SAMPLE_VIDEOS, SAMPLE_CANAIS, STATUS_LABELS, STATUS_COLORS, type Video, type VideoStatus } from "@/lib/data";
-import { GripVertical, Plus, Edit2, Trash2, ChevronRight, ChevronLeft, MoveRight } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { Plus, Edit2, Trash2, ChevronLeft, ChevronRight, MoveRight, FileText } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
@@ -10,171 +25,183 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
+// Ensure all column types are valid
 const COLUMNS: VideoStatus[] = ["titulo_gerado", "roteiro_gerado", "geracao_imagens", "upload", "postado"];
 
+// --- Card Component ---
+function KanbanCard({ video, isOverlay, onClickEdit, onClickDelete, onQuickMove }: { video: Video; isOverlay?: boolean; onClickEdit?: () => void; onClickDelete?: () => void, onQuickMove?: (action: 'prev' | 'next' | 'move') => void }) {
+  const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
+    id: video.id,
+    data: { type: "Video", video },
+    disabled: isOverlay
+  });
+
+  const style = {
+    transition,
+    transform: CSS.Transform.toString(transform),
+    opacity: isDragging ? 0.3 : 1,
+  };
+
+  const canal = SAMPLE_CANAIS.find(c => c.id === video.canalId);
+  const statusColor = STATUS_COLORS[video.status] || "bg-primary";
+
+  if (isOverlay) {
+    return (
+      <div className="bg-card/95 backdrop-blur-sm shadow-2xl rounded-xl border-2 border-primary/40 p-4 w-[280px] cursor-grabbing relative z-50">
+        <div className={`absolute left-0 top-0 bottom-0 w-1.5 rounded-l-xl ${statusColor}`} />
+        <CardContent video={video} canal={canal} />
+      </div>
+    )
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`group/card relative bg-card hover:bg-accent/30 border border-border/60 hover:border-primary/30 rounded-xl p-3 sm:p-4 shadow-sm transition-all touch-none select-none mb-3 ${isDragging ? "" : "hover:shadow-md hover:-translate-y-0.5"}`}
+      {...attributes}
+      {...listeners}
+    >
+      <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-xl ${statusColor} opacity-70 transition-opacity group-hover/card:opacity-100`} />
+
+      <div className="pl-2">
+        <CardContent video={video} canal={canal} onClickEdit={onClickEdit} onClickDelete={onClickDelete} />
+
+        {/* Mobile Quick Actions (Integrated directly in card) */}
+        {onQuickMove && (
+          <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/40 sm:hidden">
+            <Button variant="ghost" size="sm" className="h-6 px-1 text-[10px] text-muted-foreground hover:bg-secondary" onClick={(e) => { e.stopPropagation(); onQuickMove('prev'); }}>
+              <ChevronLeft className="w-3 h-3 mr-1" /> Voltar
+            </Button>
+            <Button variant="ghost" size="sm" className="h-6 px-1 text-[10px] text-primary hover:bg-primary/10" onClick={(e) => { e.stopPropagation(); onQuickMove('move'); }}>
+              <MoveRight className="w-3 h-3" />
+            </Button>
+            <Button variant="ghost" size="sm" className="h-6 px-1 text-[10px] text-muted-foreground hover:bg-secondary" onClick={(e) => { e.stopPropagation(); onQuickMove('next'); }}>
+              Avançar <ChevronRight className="w-3 h-3 ml-1" />
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CardContent({ video, canal, onClickEdit, onClickDelete }: any) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary text-foreground/70 uppercase tracking-wider">
+          {canal?.nicho || "Geral"}
+        </span>
+        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover/card:opacity-100 transition-opacity">
+          {onClickEdit && <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); onClickEdit(); }}><Edit2 className="w-3.5 h-3.5" /></Button>}
+          {onClickDelete && <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); onClickDelete(); }}><Trash2 className="w-3.5 h-3.5" /></Button>}
+        </div>
+      </div>
+
+      <h4 className="font-semibold text-sm text-foreground line-clamp-2 leading-relaxed tracking-tight">
+        {video.titulo}
+      </h4>
+
+      <div className="flex items-center justify-between mt-1">
+        <div className="flex items-center gap-1.5 bg-secondary/40 px-2 py-1 rounded-md max-w-[70%]">
+          <div className="w-1.5 h-1.5 rounded-full bg-primary/70 shrink-0" />
+          <span className="text-[10px] sm:text-xs text-muted-foreground truncate font-medium">{canal?.nome}</span>
+        </div>
+        {video.notas && <FileText className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />}
+      </div>
+    </div>
+  )
+}
+
+// --- Main Kanban Component ---
 export default function Kanban() {
   const [videos, setVideos] = useState<Video[]>(SAMPLE_VIDEOS);
-  const [dragging, setDragging] = useState<string | null>(null);
-  const [dragOverCol, setDragOverCol] = useState<VideoStatus | null>(null);
+  const [activeVideo, setActiveVideo] = useState<Video | null>(null); // For drag overlay
+
+  // Modals state
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ titulo: "", canalId: "", notas: "", thumbnail: "" });
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [moveVideoId, setMoveVideoId] = useState<string | null>(null);
+  const [moveVideoId, setMoveVideoId] = useState<string | null>(null); // Mobile explicit move
+
   const { toast } = useToast();
 
-  // Detect touch device
-  const [isTouchDevice, setIsTouchDevice] = useState(false);
-  useEffect(() => {
-    setIsTouchDevice("ontouchstart" in window || navigator.maxTouchPoints > 0);
-  }, []);
+  // Sensors
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }), // 5px drag to start
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }) // 150ms press to drag on touch
+  );
 
-  // Touch drag state
-  const touchState = useRef<{
-    videoId: string;
-    startX: number;
-    startY: number;
-    clone: HTMLElement | null;
-    moved: boolean;
-  } | null>(null);
-  const columnsRef = useRef<Map<VideoStatus, HTMLElement>>(new Map());
+  // Computed columns for dnd-kit
+  const columnsData = useMemo(() => {
+    const cols: Record<string, Video[]> = {};
+    COLUMNS.forEach(c => cols[c] = []);
+    videos.forEach(v => {
+      if (cols[v.status]) cols[v.status].push(v);
+    });
+    return cols;
+  }, [videos]);
 
-  // Desktop drag handlers
-  const handleDragStart = (e: React.DragEvent, id: string) => {
-    setDragging(id);
-    e.dataTransfer.effectAllowed = "move";
-    (e.currentTarget as HTMLElement).style.opacity = "0.5";
+  // Handlers
+  const onDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    const video = videos.find(v => v.id === active.id);
+    if (video) setActiveVideo(video);
   };
 
-  const handleDragEnd = (e: React.DragEvent) => {
-    (e.currentTarget as HTMLElement).style.opacity = "1";
-    setDragging(null);
-    setDragOverCol(null);
-  };
+  const onDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) return;
 
-  const handleDragOver = (e: React.DragEvent, status: VideoStatus) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    setDragOverCol(status);
-  };
+    const activeId = active.id;
+    const overId = over.id;
 
-  const handleDrop = (status: VideoStatus) => {
-    if (!dragging) return;
-    setVideos((prev) => prev.map((v) => (v.id === dragging ? { ...v, status } : v)));
-    setDragging(null);
-    setDragOverCol(null);
-  };
+    // Find containers
+    const activeVideo = videos.find(v => v.id === activeId);
+    const overVideo = videos.find(v => v.id === overId);
 
-  // Touch drag handlers
-  const handleTouchStart = useCallback((e: React.TouchEvent, videoId: string) => {
-    const touch = e.touches[0];
-    const el = e.currentTarget as HTMLElement;
-    touchState.current = {
-      videoId,
-      startX: touch.clientX,
-      startY: touch.clientY,
-      clone: null,
-      moved: false,
-    };
+    if (!activeVideo) return;
 
-    // Create floating clone for drag preview after a small delay/movement
-    const rect = el.getBoundingClientRect();
-    const clone = el.cloneNode(true) as HTMLElement;
-    clone.style.position = "fixed";
-    clone.style.left = `${rect.left}px`;
-    clone.style.top = `${rect.top}px`;
-    clone.style.width = `${rect.width}px`;
-    clone.style.opacity = "0";
-    clone.style.zIndex = "9999";
-    clone.style.pointerEvents = "none";
-    clone.style.transform = "rotate(2deg) scale(1.03)";
-    clone.style.boxShadow = "0 12px 24px rgba(0,0,0,0.3)";
-    clone.style.borderRadius = "8px";
-    document.body.appendChild(clone);
-    touchState.current.clone = clone;
-  }, []);
+    const activeColumn = activeVideo.status;
+    const overColumn = overVideo ? overVideo.status : (COLUMNS.includes(overId as any) ? overId : null);
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!touchState.current) return;
-    const touch = e.touches[0];
-    const dx = touch.clientX - touchState.current.startX;
-    const dy = touch.clientY - touchState.current.startY;
-
-    // Only start drag after minimum threshold
-    if (!touchState.current.moved && Math.abs(dx) + Math.abs(dy) > 8) {
-      touchState.current.moved = true;
-      setDragging(touchState.current.videoId);
-      if (touchState.current.clone) {
-        touchState.current.clone.style.opacity = "0.9";
-      }
-    }
-
-    if (touchState.current.moved && touchState.current.clone) {
-      e.preventDefault();
-      const clone = touchState.current.clone;
-      const startRect = clone.getBoundingClientRect();
-      clone.style.left = `${parseFloat(clone.style.left) + (touch.clientX - (startRect.left + startRect.width / 2))}px`;
-      clone.style.top = `${parseFloat(clone.style.top) + (touch.clientY - (startRect.top + startRect.height / 2))}px`;
-
-      // Detect which column we're over
-      let foundCol: VideoStatus | null = null;
-      columnsRef.current.forEach((colEl, status) => {
-        const rect = colEl.getBoundingClientRect();
-        if (touch.clientX >= rect.left && touch.clientX <= rect.right &&
-          touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
-          foundCol = status;
-        }
+    if (activeColumn !== overColumn && overColumn) {
+      // Move between columns visually
+      setVideos((prev) => {
+        return prev.map(v => {
+          if (v.id === activeId) return { ...v, status: overColumn as VideoStatus };
+          return v;
+        });
       });
-      setDragOverCol(foundCol);
     }
-  }, []);
-
-  const handleTouchEnd = useCallback(() => {
-    if (!touchState.current) return;
-
-    // Clean up clone
-    if (touchState.current.clone) {
-      touchState.current.clone.remove();
-    }
-
-    // If moved and over a column, do the drop
-    if (touchState.current.moved && dragOverCol) {
-      setVideos((prev) => prev.map((v) =>
-        v.id === touchState.current!.videoId ? { ...v, status: dragOverCol } : v
-      ));
-    }
-
-    setDragging(null);
-    setDragOverCol(null);
-    touchState.current = null;
-  }, [dragOverCol]);
-
-  // Move video to column (mobile button approach)
-  const moveToColumn = (videoId: string, newStatus: VideoStatus) => {
-    setVideos((prev) => prev.map((v) => (v.id === videoId ? { ...v, status: newStatus } : v)));
-    setMoveVideoId(null);
-    toast({ title: "Card movido!", description: `Movido para "${STATUS_LABELS[newStatus]}"` });
   };
 
-  // Quick move: advance to next column
-  const moveToNext = (video: Video) => {
+  const onDragEnd = (event: DragEndEvent) => {
+    setActiveVideo(null);
+  };
+
+  // Mobile Arrows Logic
+  const handleQuickMove = (video: Video, action: 'prev' | 'next' | 'move') => {
     const idx = COLUMNS.indexOf(video.status);
-    if (idx < COLUMNS.length - 1) {
-      const next = COLUMNS[idx + 1];
-      setVideos(prev => prev.map(v => v.id === video.id ? { ...v, status: next } : v));
-      toast({ title: "Avançou!", description: `"${video.titulo}" → ${STATUS_LABELS[next]}` });
+    if (action === 'move') {
+      setMoveVideoId(video.id);
+      return;
+    }
+
+    let newIdx = idx;
+    if (action === 'prev' && idx > 0) newIdx--;
+    if (action === 'next' && idx < COLUMNS.length - 1) newIdx++;
+
+    if (newIdx !== idx) {
+      const newStatus = COLUMNS[newIdx];
+      setVideos(prev => prev.map(v => v.id === video.id ? { ...v, status: newStatus } : v));
+      toast({ title: "Moved", description: `Moved to ${STATUS_LABELS[newStatus]}` });
     }
   };
 
-  const moveToPrev = (video: Video) => {
-    const idx = COLUMNS.indexOf(video.status);
-    if (idx > 0) {
-      const prev = COLUMNS[idx - 1];
-      setVideos(p => p.map(v => v.id === video.id ? { ...v, status: prev } : v));
-      toast({ title: "Voltou!", description: `"${video.titulo}" → ${STATUS_LABELS[prev]}` });
-    }
-  };
-
+  // CRUD Handlers
   const handleOpenCreate = () => {
     setFormData({ titulo: "", canalId: "", notas: "", thumbnail: "" });
     setEditingId(null);
@@ -207,18 +234,19 @@ export default function Kanban() {
     toast({ title: "Vídeo excluído", description: "O vídeo foi removido do pipeline." });
   };
 
-  const setColumnRef = useCallback((status: VideoStatus) => (el: HTMLElement | null) => {
-    if (el) columnsRef.current.set(status, el);
-    else columnsRef.current.delete(status);
-  }, []);
+  const moveToColumn = (videoId: string, newStatus: VideoStatus) => {
+    setVideos((prev) => prev.map((v) => (v.id === videoId ? { ...v, status: newStatus } : v)));
+    setMoveVideoId(null);
+    toast({ title: "Card movido!", description: `Movido para "${STATUS_LABELS[newStatus]}"` });
+  };
 
   return (
-    <div className="p-3 sm:p-4 lg:p-8 space-y-4 sm:space-y-6">
+    <div className="p-3 sm:p-4 lg:p-8 space-y-4 sm:space-y-6 max-w-[100vw] overflow-x-hidden">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-foreground">Kanban</h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
-            {isTouchDevice ? "Toque nas setas para mover os cards" : "Arraste os cards para mover no pipeline"}
+            Gerencie o fluxo de produção dos seus vídeos
           </p>
         </div>
         <Button onClick={handleOpenCreate} className="gradient-accent text-primary-foreground gap-1.5 sm:gap-2 text-xs sm:text-sm px-3 sm:px-4 shrink-0">
@@ -226,100 +254,54 @@ export default function Kanban() {
         </Button>
       </div>
 
-      <div className="flex gap-2.5 sm:gap-3 overflow-x-auto pb-4 snap-x snap-mandatory -mx-3 px-3 sm:-mx-4 sm:px-4 lg:mx-0 lg:px-0">
-        {COLUMNS.map((status) => {
-          const columnVideos = videos.filter((v) => v.status === status);
-          const isOver = dragOverCol === status;
-          const colIdx = COLUMNS.indexOf(status);
-          return (
-            <div
-              key={status}
-              ref={setColumnRef(status)}
-              onDragOver={(e) => handleDragOver(e, status)}
-              onDragLeave={() => setDragOverCol(null)}
-              onDrop={() => handleDrop(status)}
-              className={`min-w-[220px] sm:min-w-[260px] md:min-w-[280px] flex-1 rounded-xl p-2.5 sm:p-3 space-y-2 snap-start transition-colors duration-200 ${isOver ? "bg-primary/10 border-2 border-dashed border-primary/40" : "bg-secondary/30 border-2 border-transparent"}`}
-            >
-              <div className="flex items-center gap-2 mb-2 px-1">
-                <div className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${STATUS_COLORS[status]}`} />
-                <span className="text-xs sm:text-sm font-semibold text-foreground">{STATUS_LABELS[status]}</span>
-                <span className="ml-auto text-[10px] sm:text-xs bg-secondary px-1.5 sm:px-2 py-0.5 rounded-full text-muted-foreground font-medium">{columnVideos.length}</span>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={pointerWithin}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDragEnd={onDragEnd}
+      >
+        <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-6 snap-x snap-mandatory -mx-3 px-3 sm:-mx-4 sm:px-4 lg:mx-0 lg:px-0">
+          {COLUMNS.map((status) => (
+            <div key={status} className="min-w-[260px] sm:min-w-[280px] flex-1 bg-secondary/20 border border-border/50 rounded-xl p-2 sm:p-3 snap-start h-fit">
+              {/* Column Header */}
+              <div className="flex items-center gap-2 mb-3 px-1">
+                <div className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[status]}`} />
+                <span className="text-sm font-semibold text-foreground">{STATUS_LABELS[status]}</span>
+                <span className="ml-auto text-xs bg-secondary px-2 py-0.5 rounded-full text-muted-foreground font-medium">{columnsData[status].length}</span>
               </div>
-              <AnimatePresence mode="popLayout">
-                {columnVideos.map((video) => {
-                  const canal = SAMPLE_CANAIS.find((c) => c.id === video.canalId);
-                  return (
-                    <motion.div
+
+              <SortableContext id={status} items={columnsData[status]} strategy={verticalListSortingStrategy}>
+                <div className="space-y-3 min-h-[100px]">
+                  {columnsData[status].map((video) => (
+                    <KanbanCard
                       key={video.id}
-                      layout
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ duration: 0.15 }}
-                      draggable={!isTouchDevice}
-                      onDragStart={!isTouchDevice ? (e) => handleDragStart(e as unknown as React.DragEvent, video.id) : undefined}
-                      onDragEnd={!isTouchDevice ? (e) => handleDragEnd(e as unknown as React.DragEvent) : undefined}
-                      onTouchStart={isTouchDevice ? (e) => handleTouchStart(e, video.id) : undefined}
-                      onTouchMove={isTouchDevice ? handleTouchMove : undefined}
-                      onTouchEnd={isTouchDevice ? handleTouchEnd : undefined}
-                      className={`bg-card border rounded-lg p-2.5 sm:p-3 transition-all duration-150 select-none group/card ${!isTouchDevice ? "cursor-grab active:cursor-grabbing" : ""
-                        } ${dragging === video.id ? "border-primary shadow-lg shadow-primary/20 scale-[1.02] opacity-50" : "border-border hover:border-primary/30"}`}
-                    >
-                      <div className="flex items-start gap-1.5 sm:gap-2">
-                        {!isTouchDevice && <GripVertical className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0 opacity-50" />}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-xs sm:text-sm text-foreground truncate">{video.titulo}</p>
-                          <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">{canal?.nome}</p>
-                          {video.notas && <p className="text-[10px] sm:text-xs text-muted-foreground/70 mt-0.5 sm:mt-1 truncate italic">{video.notas}</p>}
-                        </div>
-                        <div className="flex gap-0.5 opacity-100 sm:opacity-0 sm:group-hover/card:opacity-100 transition-opacity shrink-0">
-                          <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(video); }} className="p-1 rounded hover:bg-secondary active:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Editar vídeo">
-                            <Edit2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                          </button>
-                          <button onClick={(e) => { e.stopPropagation(); setDeleteId(video.id); }} className="p-1 rounded hover:bg-destructive/10 active:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Excluir vídeo">
-                            <Trash2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Mobile: Move arrows */}
-                      {isTouchDevice && (
-                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/40">
-                          <button
-                            disabled={colIdx === 0}
-                            onClick={(e) => { e.stopPropagation(); moveToPrev(video); }}
-                            className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${colIdx === 0 ? "text-muted-foreground/30 cursor-not-allowed" : "text-muted-foreground hover:text-foreground active:bg-secondary"
-                              }`}
-                          >
-                            <ChevronLeft className="w-3 h-3" /> Voltar
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setMoveVideoId(video.id); }}
-                            className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium text-primary hover:bg-primary/10 active:bg-primary/10 transition-colors"
-                          >
-                            <MoveRight className="w-3 h-3" /> Mover
-                          </button>
-                          <button
-                            disabled={colIdx === COLUMNS.length - 1}
-                            onClick={(e) => { e.stopPropagation(); moveToNext(video); }}
-                            className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${colIdx === COLUMNS.length - 1 ? "text-muted-foreground/30 cursor-not-allowed" : "text-emerald-400 hover:bg-emerald-500/10 active:bg-emerald-500/10"
-                              }`}
-                          >
-                            Avançar <ChevronRight className="w-3 h-3" />
-                          </button>
-                        </div>
-                      )}
-                    </motion.div>
-                  );
-                })}
-              </AnimatePresence>
-              {columnVideos.length === 0 && <div className="text-center py-6 sm:py-8 text-[10px] sm:text-xs text-muted-foreground/50">{isTouchDevice ? "Mova cards para cá" : "Arraste cards aqui"}</div>}
+                      video={video}
+                      onClickEdit={() => handleOpenEdit(video)}
+                      onClickDelete={() => setDeleteId(video.id)}
+                      onQuickMove={(action) => handleQuickMove(video, action)}
+                    />
+                  ))}
+                  {columnsData[status].length === 0 && (
+                    <div className="h-24 rounded-lg border-2 border-dashed border-border/40 flex items-center justify-center text-muted-foreground/30 text-xs">
+                      Vazio
+                    </div>
+                  )}
+                </div>
+              </SortableContext>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
 
-      {/* Move to specific column dialog (mobile) */}
+        {createPortal(
+          <DragOverlay dropAnimation={{ sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.4' } } }) }}>
+            {activeVideo ? <KanbanCard video={activeVideo} isOverlay /> : null}
+          </DragOverlay>,
+          document.body
+        )}
+      </DndContext>
+
+      {/* Move Dialog (Mobile) */}
       <Dialog open={!!moveVideoId} onOpenChange={() => setMoveVideoId(null)}>
         <DialogContent className="bg-card border-border w-[calc(100%-1.5rem)] sm:w-full max-w-sm rounded-xl p-4 sm:p-6">
           <DialogHeader>
@@ -336,8 +318,8 @@ export default function Kanban() {
                   disabled={isCurrent}
                   onClick={() => moveVideoId && moveToColumn(moveVideoId, status)}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${isCurrent
-                      ? "bg-primary/10 text-primary border border-primary/20 cursor-not-allowed"
-                      : "text-foreground hover:bg-secondary active:bg-secondary border border-transparent"
+                    ? "bg-primary/10 text-primary border border-primary/20 cursor-not-allowed"
+                    : "text-foreground hover:bg-secondary active:bg-secondary border border-transparent"
                     }`}
                 >
                   <div className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[status]}`} />
@@ -350,6 +332,7 @@ export default function Kanban() {
         </DialogContent>
       </Dialog>
 
+      {/* Edit/Create Dialog */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="bg-card border-border w-[calc(100%-1.5rem)] sm:w-full max-w-lg rounded-xl p-4 sm:p-6">
           <DialogHeader>
@@ -386,11 +369,12 @@ export default function Kanban() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete/Alert Dialog */}
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent className="bg-card border-border w-[calc(100%-1.5rem)] sm:w-full rounded-xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir Vídeo?</AlertDialogTitle>
-            <AlertDialogDescription>Tem certeza que deseja excluir o vídeo <strong>{videos.find(v => v.id === deleteId)?.titulo}</strong>? Esta ação não pode ser desfeita.</AlertDialogDescription>
+            <AlertDialogDescription>Tem certeza que deseja excluir o vídeo? Esta ação não pode ser desfeita.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
