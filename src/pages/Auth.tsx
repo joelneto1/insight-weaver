@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,55 @@ import { Mail, Lock, User, Loader2, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/Logo";
+
+// Floating particles for animated background
+function Particles() {
+  const [particles] = useState(() =>
+    Array.from({ length: 30 }, (_, i) => ({
+      id: i,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: Math.random() * 4 + 1,
+      duration: Math.random() * 20 + 15,
+      delay: Math.random() * 10,
+      opacity: Math.random() * 0.3 + 0.05,
+    }))
+  );
+
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {particles.map((p) => (
+        <motion.div
+          key={p.id}
+          className="absolute rounded-full bg-primary"
+          style={{ left: `${p.x}%`, top: `${p.y}%`, width: p.size, height: p.size, opacity: p.opacity }}
+          animate={{
+            y: [0, -40, 0, 30, 0],
+            x: [0, 20, -15, 10, 0],
+            opacity: [p.opacity, p.opacity * 2, p.opacity, p.opacity * 1.5, p.opacity],
+          }}
+          transition={{ duration: p.duration, repeat: Infinity, delay: p.delay, ease: "easeInOut" }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Animated mesh gradient
+function MeshGradient() {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <motion.div
+        className="absolute -top-1/2 -left-1/2 w-[200%] h-[200%]"
+        style={{
+          background: "radial-gradient(ellipse at 20% 50%, hsla(200, 80%, 50%, 0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, hsla(260, 80%, 50%, 0.06) 0%, transparent 50%), radial-gradient(ellipse at 50% 80%, hsla(180, 80%, 50%, 0.05) 0%, transparent 50%)",
+        }}
+        animate={{ rotate: [0, 360] }}
+        transition={{ duration: 120, repeat: Infinity, ease: "linear" }}
+      />
+    </div>
+  );
+}
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -21,7 +70,6 @@ export default function Auth() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Client-side validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       toast({ title: "Email inválido", description: "Por favor, insira um email válido.", variant: "destructive" });
@@ -58,10 +106,7 @@ export default function Auth() {
       if (error) {
         toast({ title: "Erro ao registrar", description: error.message, variant: "destructive" });
       } else {
-        toast({
-          title: "Conta criada!",
-          description: "Bem-vindo ao DarkTube!",
-        });
+        toast({ title: "Conta criada!", description: "Bem-vindo ao DarkTube!" });
       }
     }
     setLoading(false);
@@ -94,66 +139,56 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden transition-colors duration-500">
+      {/* Animated Background */}
+      <MeshGradient />
+      <Particles />
 
-      {/* Decorative Elements (Doodles) - Updated Colors */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {/* Left Side Shapes */}
-        <motion.div
-          initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}
-          className="absolute top-1/4 left-10 md:left-20"
-        >
-          <div className="w-16 h-16 border-2 border-dashed border-primary/20 rounded-full" />
-          <div className="w-8 h-8 bg-accent/20 rounded-full absolute -top-4 -right-4" />
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-          className="absolute bottom-1/4 left-10 md:left-32 hidden md:block"
-        >
-          <div className="w-24 h-32 bg-secondary rounded-t-full relative pattern-dots opacity-50" />
-          <div className="w-12 h-12 border-2 border-primary/30 absolute -right-6 top-10 rounded-lg transform rotate-12" />
-        </motion.div>
-
-        {/* Right Side Shapes */}
-        <motion.div
-          initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }}
-          className="absolute top-20 right-10 md:right-32 hidden md:block"
-        >
-          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/10 to-accent/10 blur-xl"></div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
-          className="absolute bottom-20 right-10 md:right-20 hidden lg:block"
-        >
-          <div className="w-20 h-40 bg-accent/10 rounded-t-full relative opacity-90 overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent"></div>
-          </div>
-        </motion.div>
-      </div>
+      {/* Decorative glowing orbs */}
+      <motion.div
+        className="absolute top-1/4 left-1/4 w-64 h-64 rounded-full bg-primary/5 blur-3xl"
+        animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
+        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full bg-accent/5 blur-3xl"
+        animate={{ scale: [1.2, 1, 1.2], opacity: [0.4, 0.2, 0.4] }}
+        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+      />
 
       {/* Main Login Card */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4 }}
-        className="w-full max-w-[420px] bg-card rounded-3xl shadow-xl p-8 md:p-10 relative z-10 border border-border"
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        className="w-full max-w-[420px] bg-card/80 backdrop-blur-xl rounded-3xl shadow-2xl shadow-black/20 p-8 md:p-10 relative z-10 border border-border/60"
       >
         <div className="text-center mb-8">
-          <div className="flex justify-center mb-6">
-            <Logo className="w-16 h-16 shadow-lg shadow-primary/10 rounded-xl" />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground mb-2">
+          <motion.div className="flex justify-center mb-6"
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+          >
+            <Logo className="w-16 h-16 shadow-lg shadow-primary/20 rounded-xl" />
+          </motion.div>
+          <motion.h1 className="text-2xl font-bold text-foreground mb-2"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
             {isLogin ? "Bem-vindo de Volta" : "Criar Conta"}
-          </h1>
-          <p className="text-muted-foreground text-sm">
+          </motion.h1>
+          <motion.p className="text-muted-foreground text-sm"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
             {isLogin ? "Ei, insira seus detalhes para entrar na sua conta" : "Preencha os dados abaixo para começar"}
-          </p>
+          </motion.p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {!isLogin && (
-            <div className="space-y-1">
+            <motion.div className="space-y-1" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
               <div className="relative group">
                 <Input
                   className="pl-4 pr-10 py-6 rounded-xl border-input bg-secondary/30 focus:bg-background focus:ring-2 focus:ring-primary/20 transition-all font-medium"
@@ -163,7 +198,7 @@ export default function Auth() {
                 />
                 <User className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
               </div>
-            </div>
+            </motion.div>
           )}
 
           <div className="space-y-1">

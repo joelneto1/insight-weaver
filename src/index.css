@@ -6,41 +6,41 @@
 
 @layer base {
   :root {
-    --background: 216 28% 93%;
-    --foreground: 215 28% 10%;
+    --background: 220 20% 96%;
+    --foreground: 220 25% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 215 28% 10%;
+    --card-foreground: 220 25% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 215 28% 10%;
-    --primary: 190 80% 45%;
+    --popover-foreground: 220 25% 12%;
+    --primary: 190 80% 42%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 216 20% 88%;
-    --secondary-foreground: 215 28% 10%;
-    --muted: 216 20% 88%;
-    --muted-foreground: 215 15% 45%;
-    --accent: 190 80% 45%;
+    --secondary: 220 16% 90%;
+    --secondary-foreground: 220 25% 12%;
+    --muted: 220 16% 90%;
+    --muted-foreground: 220 12% 48%;
+    --accent: 190 80% 42%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 216 18% 82%;
-    --input: 216 18% 82%;
-    --ring: 190 80% 45%;
+    --border: 220 14% 86%;
+    --input: 220 14% 86%;
+    --ring: 190 80% 42%;
     --radius: 0.75rem;
-    --sidebar-background: 216 25% 96%;
-    --sidebar-foreground: 215 15% 30%;
-    --sidebar-primary: 190 80% 45%;
+    --sidebar-background: 220 18% 97%;
+    --sidebar-foreground: 220 12% 35%;
+    --sidebar-primary: 190 80% 42%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 216 20% 90%;
-    --sidebar-accent-foreground: 215 28% 10%;
-    --sidebar-border: 216 18% 88%;
-    --sidebar-ring: 190 80% 45%;
+    --sidebar-accent: 220 16% 92%;
+    --sidebar-accent-foreground: 220 25% 12%;
+    --sidebar-border: 220 14% 90%;
+    --sidebar-ring: 190 80% 42%;
 
     --status-planning: 45 93% 47%;
     --status-production: 25 95% 53%;
     --status-ready: 160 84% 39%;
     --status-scheduled: 220 70% 55%;
     --status-published: 270 60% 55%;
-    --gradient-accent: linear-gradient(135deg, hsl(190, 80%, 45%), hsl(220, 90%, 50%));
+    --gradient-accent: linear-gradient(135deg, hsl(190, 80%, 42%), hsl(220, 90%, 50%));
   }
 
   .dark {
@@ -96,6 +96,33 @@
   }
 }
 
+/* ===== LIGHT MODE POLISH ===== */
+:root body {
+  background:
+    radial-gradient(ellipse 120% 60% at 10% 0%, hsla(190, 80%, 60%, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse 80% 60% at 90% 10%, hsla(220, 85%, 55%, 0.04) 0%, transparent 50%),
+    hsl(220, 20%, 96%);
+  min-height: 100vh;
+}
+
+/* Light mode card styling */
+:root .bg-card {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid hsla(220, 14%, 86%, 0.8);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+:root .bg-card:hover {
+  border-color: hsla(190, 80%, 42%, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05), 0 0 0 1px hsla(190, 80%, 42%, 0.1);
+  transition: all 0.3s ease;
+}
+
+/* Light mode sidebar */
+:root .bg-sidebar {
+  background: linear-gradient(180deg, hsl(220, 18%, 97%) 0%, hsl(220, 16%, 95%) 100%);
+}
+
 /* ===== DARK MODE AMBIENT BACKGROUND ===== */
 .dark body {
   background:
@@ -106,12 +133,12 @@
   min-height: 100vh;
 }
 
-/* ===== SIDEBAR GRADIENT ===== */
+/* ===== SIDEBAR GRADIENT (Dark) ===== */
 .dark .bg-sidebar {
   background: linear-gradient(180deg, hsl(220, 50%, 7%) 0%, hsl(220, 48%, 5%) 100%);
 }
 
-/* ===== CARD GLASS EFFECT ===== */
+/* ===== CARD GLASS EFFECT (Dark) ===== */
 .dark .bg-card {
   background: linear-gradient(135deg, hsla(218, 42%, 12%, 0.9), hsla(218, 42%, 9%, 0.8));
   border: 1px solid hsla(218, 40%, 20%, 0.5);
@@ -131,19 +158,33 @@
   border-bottom: 1px solid hsla(218, 35%, 18%, 0.5);
 }
 
+/* Light mode header glass */
+header.bg-background\/80 {
+  background: hsla(220, 20%, 96%, 0.85) !important;
+  backdrop-filter: blur(16px);
+}
+
 /* ===== SCROLLBAR ===== */
-.dark ::-webkit-scrollbar {
+::-webkit-scrollbar {
   width: 5px;
   height: 5px;
 }
 
-.dark ::-webkit-scrollbar-track {
+::-webkit-scrollbar-track {
   background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsla(215, 25%, 60%, 0.3);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsla(190, 80%, 50%, 0.4);
 }
 
 .dark ::-webkit-scrollbar-thumb {
   background: hsla(215, 25%, 40%, 0.3);
-  border-radius: 10px;
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
@@ -152,21 +193,41 @@
 
 /* ===== STAT CARD GRADIENTS ===== */
 .stat-card-cyan {
+  background: linear-gradient(135deg, hsla(185, 85%, 50%, 0.08), hsla(220, 70%, 50%, 0.04)) !important;
+  border: 1px solid hsla(185, 85%, 50%, 0.15) !important;
+}
+
+.dark .stat-card-cyan {
   background: linear-gradient(135deg, hsla(185, 85%, 50%, 0.12), hsla(220, 70%, 50%, 0.06)) !important;
   border: 1px solid hsla(185, 85%, 50%, 0.2) !important;
 }
 
 .stat-card-emerald {
+  background: linear-gradient(135deg, hsla(160, 84%, 39%, 0.08), hsla(185, 70%, 40%, 0.04)) !important;
+  border: 1px solid hsla(160, 84%, 39%, 0.15) !important;
+}
+
+.dark .stat-card-emerald {
   background: linear-gradient(135deg, hsla(160, 84%, 39%, 0.12), hsla(185, 70%, 40%, 0.06)) !important;
   border: 1px solid hsla(160, 84%, 39%, 0.2) !important;
 }
 
 .stat-card-amber {
+  background: linear-gradient(135deg, hsla(40, 90%, 50%, 0.08), hsla(25, 80%, 50%, 0.04)) !important;
+  border: 1px solid hsla(40, 90%, 50%, 0.15) !important;
+}
+
+.dark .stat-card-amber {
   background: linear-gradient(135deg, hsla(40, 90%, 50%, 0.12), hsla(25, 80%, 50%, 0.06)) !important;
   border: 1px solid hsla(40, 90%, 50%, 0.2) !important;
 }
 
 .stat-card-purple {
+  background: linear-gradient(135deg, hsla(270, 70%, 55%, 0.08), hsla(290, 60%, 50%, 0.04)) !important;
+  border: 1px solid hsla(270, 70%, 55%, 0.15) !important;
+}
+
+.dark .stat-card-purple {
   background: linear-gradient(135deg, hsla(270, 70%, 55%, 0.12), hsla(290, 60%, 50%, 0.06)) !important;
   border: 1px solid hsla(270, 70%, 55%, 0.2) !important;
 }
@@ -200,11 +261,29 @@
   box-shadow: 0 4px 12px -2px rgba(20, 184, 166, 0.4);
 }
 
-/* ===== CHART AREA ===== */
+/* ===== CHART STYLING ===== */
 .recharts-cartesian-grid line {
+  stroke: hsla(220, 14%, 86%, 0.5) !important;
+}
+
+.dark .recharts-cartesian-grid line {
   stroke: hsla(218, 35%, 20%, 0.3) !important;
 }
 
 .dark .recharts-text {
   fill: hsla(215, 25%, 50%, 1) !important;
+}
+
+.recharts-text {
+  fill: hsla(220, 12%, 48%, 1) !important;
+}
+
+/* ===== DRAG AND DROP ===== */
+[data-dragging="true"] {
+  opacity: 0.5;
+}
+
+/* ===== SMOOTH TRANSITIONS ===== */
+* {
+  scroll-behavior: smooth;
 }

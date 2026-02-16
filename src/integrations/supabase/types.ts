@@ -7,52 +7,98 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.1"
   }
   public: {
     Tables: {
-      contas: {
+      canais: {
         Row: {
-          id: string
-          user_id: string
-          nick: string
-          email: string
-          senha_email: string | null
-          telefone: string | null
-          perfil_conectado: string | null
-          plataforma: string | null
-          anotacoes: string | null
           created_at: string
+          email: string
+          frequencia: string
+          horario_postagem: string
+          id: string
+          idioma: string
+          micronicho: string
+          nicho: string
+          nome: string
+          subnicho: string
           updated_at: string
+          user_id: string
+          videos_postados: number
         }
         Insert: {
-          id?: string
-          user_id: string
-          nick: string
-          email: string
-          senha_email?: string | null
-          telefone?: string | null
-          perfil_conectado?: string | null
-          plataforma?: string | null
-          anotacoes?: string | null
           created_at?: string
+          email?: string
+          frequencia?: string
+          horario_postagem?: string
+          id?: string
+          idioma?: string
+          micronicho?: string
+          nicho?: string
+          nome: string
+          subnicho?: string
           updated_at?: string
+          user_id: string
+          videos_postados?: number
         }
         Update: {
-          id?: string
-          user_id?: string
-          nick?: string
+          created_at?: string
           email?: string
-          senha_email?: string | null
-          telefone?: string | null
-          perfil_conectado?: string | null
-          plataforma?: string | null
+          frequencia?: string
+          horario_postagem?: string
+          id?: string
+          idioma?: string
+          micronicho?: string
+          nicho?: string
+          nome?: string
+          subnicho?: string
+          updated_at?: string
+          user_id?: string
+          videos_postados?: number
+        }
+        Relationships: []
+      }
+      contas: {
+        Row: {
+          anotacoes: string | null
+          created_at: string
+          email: string
+          id: string
+          nick: string
+          perfil_conectado: string | null
+          plataforma: string | null
+          senha_email: string | null
+          telefone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
           anotacoes?: string | null
           created_at?: string
+          email: string
+          id?: string
+          nick: string
+          perfil_conectado?: string | null
+          plataforma?: string | null
+          senha_email?: string | null
+          telefone?: string | null
           updated_at?: string
+          user_id: string
+        }
+        Update: {
+          anotacoes?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          nick?: string
+          perfil_conectado?: string | null
+          plataforma?: string | null
+          senha_email?: string | null
+          telefone?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -60,6 +106,7 @@ export type Database = {
         Row: {
           canal_nome: string | null
           categoria: string
+          cotacao_dolar: number | null
           created_at: string | null
           data: string
           descricao: string | null
@@ -69,12 +116,12 @@ export type Database = {
           updated_at: string | null
           user_id: string
           valor: number
-          valor_usd?: number | null
-          cotacao_dolar?: number | null
+          valor_usd: number | null
         }
         Insert: {
           canal_nome?: string | null
           categoria: string
+          cotacao_dolar?: number | null
           created_at?: string | null
           data?: string
           descricao?: string | null
@@ -85,11 +132,11 @@ export type Database = {
           user_id: string
           valor: number
           valor_usd?: number | null
-          cotacao_dolar?: number | null
         }
         Update: {
           canal_nome?: string | null
           categoria?: string
+          cotacao_dolar?: number | null
           created_at?: string | null
           data?: string
           descricao?: string | null
@@ -100,7 +147,6 @@ export type Database = {
           user_id?: string
           valor?: number
           valor_usd?: number | null
-          cotacao_dolar?: number | null
         }
         Relationships: []
       }
@@ -108,37 +154,111 @@ export type Database = {
         Row: {
           avatar_url: string | null
           bio: string | null
+          birth_date: string | null
           created_at: string
           display_name: string | null
           id: string
+          phone: string | null
           updated_at: string
           user_id: string
-          phone: string | null
-          birth_date: string | null
         }
         Insert: {
           avatar_url?: string | null
           bio?: string | null
+          birth_date?: string | null
           created_at?: string
           display_name?: string | null
           id?: string
+          phone?: string | null
           updated_at?: string
           user_id: string
-          phone?: string | null
-          birth_date?: string | null
         }
         Update: {
           avatar_url?: string | null
           bio?: string | null
+          birth_date?: string | null
           created_at?: string
           display_name?: string | null
           id?: string
+          phone?: string | null
           updated_at?: string
           user_id?: string
-          phone?: string | null
-          birth_date?: string | null
         }
         Relationships: []
+      }
+      prompts: {
+        Row: {
+          categoria: string
+          conteudo: string
+          created_at: string
+          favorito: boolean
+          id: string
+          titulo: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          categoria?: string
+          conteudo?: string
+          created_at?: string
+          favorito?: boolean
+          id?: string
+          titulo: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          categoria?: string
+          conteudo?: string
+          created_at?: string
+          favorito?: boolean
+          id?: string
+          titulo?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      videos: {
+        Row: {
+          canal_id: string | null
+          created_at: string
+          data_postagem: string | null
+          id: string
+          status: string
+          titulo: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          canal_id?: string | null
+          created_at?: string
+          data_postagem?: string | null
+          id?: string
+          status?: string
+          titulo: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          canal_id?: string | null
+          created_at?: string
+          data_postagem?: string | null
+          id?: string
+          status?: string
+          titulo?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "videos_canal_id_fkey"
+            columns: ["canal_id"]
+            isOneToOne: false
+            referencedRelation: "canais"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

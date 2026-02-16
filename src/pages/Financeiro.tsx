@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { SAMPLE_CANAIS } from "@/lib/data";
+import { useCanais } from "@/hooks/useCanais";
 import { formatDate, formatCurrency as formatBRL } from "@/lib/utils";
 import {
     DollarSign, TrendingUp, TrendingDown, Plus, Trash2, ArrowUpRight, ArrowDownRight,
@@ -104,6 +104,7 @@ const todayFormatted = () => {
 export default function Financeiro() {
     const { user } = useAuth();
     const { toast } = useToast();
+    const { canais } = useCanais();
     const [transacoes, setTransacoes] = useState<Transacao[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -437,7 +438,7 @@ export default function Financeiro() {
                                 <Select value={form.canal_nome} onValueChange={(v) => setForm({ ...form, canal_nome: v })}>
                                     <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione o canal..." /></SelectTrigger>
                                     <SelectContent>
-                                        {SAMPLE_CANAIS.map((c) => (
+                                        {canais.map((c) => (
                                             <SelectItem key={c.id} value={c.nome}>{c.nome}</SelectItem>
                                         ))}
                                     </SelectContent>
