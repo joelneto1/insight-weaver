@@ -58,7 +58,7 @@ function KanbanCard({ video, isOverlay, onClickEdit, onClickDelete, onQuickMove 
     <div
       ref={setNodeRef}
       style={style}
-      className={`group/card relative bg-card hover:bg-accent/30 border border-border/60 hover:border-primary/30 rounded-xl p-3 sm:p-4 shadow-sm transition-all touch-none select-none mb-3 ${isDragging ? "" : "hover:shadow-md hover:-translate-y-0.5"}`}
+      className={`group/card relative bg-gradient-to-br from-card to-secondary/10 hover:to-secondary/20 border border-border/60 hover:border-primary/30 rounded-xl p-3 sm:p-4 shadow-sm transition-all touch-none select-none mb-3 ${isDragging ? "" : "hover:shadow-md hover:-translate-y-0.5"}`}
       {...attributes}
       {...listeners}
     >
@@ -271,7 +271,7 @@ export default function Kanban() {
                 <span className="ml-auto text-xs bg-secondary px-2 py-0.5 rounded-full text-muted-foreground font-medium">{columnsData[status].length}</span>
               </div>
 
-              <SortableContext id={status} items={columnsData[status]} strategy={verticalListSortingStrategy}>
+              <SortableContext id={status} items={columnsData[status].map(v => v.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-3 min-h-[100px]">
                   {columnsData[status].map((video) => (
                     <KanbanCard
