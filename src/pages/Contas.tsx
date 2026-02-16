@@ -113,6 +113,14 @@ export default function Contas() {
             toast({ title: "Campos obrigatórios", description: "Nick e Email são obrigatórios.", variant: "destructive" });
             return;
         }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(form.email)) {
+            toast({ title: "Email inválido", description: "Por favor, insira um email válido.", variant: "destructive" });
+            return;
+        }
+
         if (!user) return;
 
         setSaving(true);
@@ -134,7 +142,8 @@ export default function Contas() {
                     plataforma: form.plataforma || "YouTube",
                     anotacoes: form.anotacoes || null,
                 })
-                .eq("id", editingId);
+                .eq("id", editingId)
+                .eq("user_id", user.id);
 
             if (error) {
                 toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" });
@@ -170,8 +179,8 @@ export default function Contas() {
     };
 
     const handleDelete = async () => {
-        if (!deleteId) return;
-        const { error } = await supabase.from("contas").delete().eq("id", deleteId);
+        if (!deleteId || !user) return;
+        const { error } = await supabase.from("contas").delete().eq("id", deleteId).eq("user_id", user.id);
         if (error) {
             toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
         } else {

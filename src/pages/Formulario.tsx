@@ -31,8 +31,13 @@ export default function Formulario() {
         setSending(true);
 
         try {
+            const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
+            if (!webhookUrl) {
+                throw new Error("URL do webhook não configurada. Verifique a variável VITE_N8N_WEBHOOK_URL.");
+            }
+
             // Envia os dados para o webhook do n8n
-            const response = await fetch(import.meta.env.VITE_N8N_WEBHOOK_URL || "https://n8n.joelneto.uk/webhook/formulario", {
+            const response = await fetch(webhookUrl, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

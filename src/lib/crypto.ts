@@ -11,7 +11,7 @@
  * with a server-side secret for encryption/decryption.
  */
 
-const APP_SALT = "darktube-insight-weaver-2026";
+const APP_SALT = import.meta.env.VITE_CRYPTO_SALT || "darktube-insight-weaver-2026";
 
 async function deriveKey(userId: string): Promise<CryptoKey> {
     const encoder = new TextEncoder();
@@ -26,7 +26,7 @@ async function deriveKey(userId: string): Promise<CryptoKey> {
         {
             name: "PBKDF2",
             salt: encoder.encode(APP_SALT),
-            iterations: 100000,
+            iterations: 310000, // OWASP 2023 recommendation for SHA-256
             hash: "SHA-256",
         },
         keyMaterial,

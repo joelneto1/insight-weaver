@@ -205,7 +205,7 @@ export default function Financeiro() {
 
         let error;
         if (editingId) {
-            const { error: updateError } = await supabase.from("financeiro").update(payload).eq("id", editingId);
+            const { error: updateError } = await supabase.from("financeiro").update(payload).eq("id", editingId).eq("user_id", user.id);
             error = updateError;
         } else {
             const { error: insertError } = await supabase.from("financeiro").insert(payload);
@@ -225,8 +225,8 @@ export default function Financeiro() {
     };
 
     const handleDelete = async () => {
-        if (!deleteId) return;
-        const { error } = await supabase.from("financeiro").delete().eq("id", deleteId);
+        if (!deleteId || !user) return;
+        const { error } = await supabase.from("financeiro").delete().eq("id", deleteId).eq("user_id", user.id);
         if (error) {
             toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
         } else {
