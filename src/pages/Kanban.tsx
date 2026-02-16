@@ -4,13 +4,12 @@ import {
   DragOverlay,
   useSensor,
   useSensors,
-  MouseSensor,
-  TouchSensor,
+  PointerSensor,
   defaultDropAnimationSideEffects,
   DragStartEvent,
   DragOverEvent,
   DragEndEvent,
-  pointerWithin,
+  closestCorners,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -58,11 +57,11 @@ function KanbanCard({ video, isOverlay, onClickEdit, onClickDelete, onQuickMove 
     <div
       ref={setNodeRef}
       style={style}
-      className={`group/card relative bg-gradient-to-br from-card to-secondary/10 hover:to-secondary/20 border border-border/60 hover:border-primary/30 rounded-xl p-3 sm:p-4 shadow-sm transition-all touch-none select-none mb-3 ${isDragging ? "" : "hover:shadow-md hover:-translate-y-0.5"}`}
+      className={`group/card relative bg-gradient-to-br from-card to-secondary/10 hover:to-secondary/20 dark:from-card dark:to-secondary/5 border border-border/60 dark:border-border/80 hover:border-primary/30 dark:hover:border-primary/50 rounded-xl p-3 sm:p-4 shadow-sm dark:shadow-md transition-all touch-none select-none mb-3 ${isDragging ? "opacity-30" : "hover:shadow-md hover:-translate-y-0.5 dark:hover:shadow-primary/5"}`}
       {...attributes}
       {...listeners}
     >
-      <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-xl ${statusColor} opacity-70 transition-opacity group-hover/card:opacity-100`} />
+      <div className={`absolute left-0 top-0 bottom-0 w-1.5 rounded-l-xl ${statusColor} opacity-75 dark:opacity-90 transition-opacity group-hover/card:opacity-100 shadow-[2px_0_8px_rgba(0,0,0,0.1)]`} />
 
       <div className="pl-2">
         <CardContent video={video} canal={canal} onClickEdit={onClickEdit} onClickDelete={onClickDelete} />
@@ -130,8 +129,7 @@ export default function Kanban() {
 
   // Sensors
   const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }), // 5px drag to start
-    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }) // 150ms press to drag on touch
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }) // Unified pointer sensor for mouse/touch with 8px threshold
   );
 
   // Computed columns for dnd-kit
@@ -256,7 +254,7 @@ export default function Kanban() {
 
       <DndContext
         sensors={sensors}
-        collisionDetection={pointerWithin}
+        collisionDetection={closestCorners}
         onDragStart={onDragStart}
         onDragOver={onDragOver}
         onDragEnd={onDragEnd}
