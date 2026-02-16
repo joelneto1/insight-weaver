@@ -12,7 +12,7 @@ import {
   closestCorners,
   useDroppable
 } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { createPortal } from "react-dom";
 import { SAMPLE_VIDEOS, SAMPLE_CANAIS, STATUS_LABELS, STATUS_COLORS, type Video, type VideoStatus } from "@/lib/data";
@@ -199,12 +199,13 @@ export default function Kanban() {
 
     // Find containers
     const activeVideo = videos.find(v => v.id === activeId);
+    if (!activeVideo) return;
 
     // Determine if dropping over a column or another card
     let overStatus: VideoStatus | null = null;
 
     if (COLUMNS.includes(overId as any)) {
-      // Droving directly over a column container
+      // Dropping directly over a column container
       overStatus = overId as VideoStatus;
     } else {
       // Dropping over a card
@@ -212,23 +213,61 @@ export default function Kanban() {
       if (overVideo) overStatus = overVideo.status;
     }
 
-    if (!activeVideo || !overStatus) return;
+    if (!overStatus || activeVideo.status === overStatus) return;
 
-    const activeStatus = activeVideo.status;
+    setVideos((items) => {
+      const activeIndex = items.findIndex((v) => v.id === activeId);
+      const overIndex = items.findIndex((v) => v.id === overId);
 
-    // Immediate visual update if changing columns
-    if (activeStatus !== overStatus) {
-      setVideos((prev) => {
-        return prev.map(v => {
-          if (v.id === activeId) return { ...v, status: overStatus as VideoStatus };
-          return v;
-        });
-      });
-    }
+      let newIndex: number;
+      if (COLUMNS.includes(overId as any)) {
+        newIndex = items.length;
+      } else {
+        const isBelowOverItem =
+          over &&
+          active.rect.current.translated &&
+          active.rect.current.translated.top > over.rect.top + over.rect.height;
+
+        const modifier = isBelowOverItem ? 1 : 0;
+        newIndex = overIndex >= 0 ? overIndex + modifier : items.length + 1;
+      }
+
+      const newItems = [...items];
+      const [removed] = newItems.splice(activeIndex, 1);
+      removed.status = overStatus as VideoStatus;
+
+      let adjustedNewIndex = newIndex;
+      if (activeIndex < newIndex) {
+        adjustedNewIndex -= 1;
+      }
+
+      newItems.splice(adjustedNewIndex, 0, removed);
+      return newItems;
+    });
   };
 
   const onDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
     setActiveVideo(null);
+
+    if (!over) return;
+
+    const activeId = active.id;
+    const overId = over.id;
+
+    if (activeId === overId) return;
+
+    const activeItem = videos.find((v) => v.id === activeId);
+    const overItem = videos.find((v) => v.id === overId);
+
+    if (activeItem && overItem && activeItem.status === overItem.status) {
+      const oldIndex = videos.findIndex((v) => v.id === activeId);
+      const newIndex = videos.findIndex((v) => v.id === overId);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        setVideos((items) => arrayMove(items, oldIndex, newIndex));
+      }
+    }
   };
 
   // Mobile Arrows Logic
