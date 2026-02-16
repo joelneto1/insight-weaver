@@ -1,5 +1,5 @@
 :80 {
-    root * /app/dist
+    root * /srv
     encode gzip
 
     # SPA: todas as rotas caem no index.html
