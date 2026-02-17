@@ -27,7 +27,7 @@ export function useCanais() {
             setCanais(data || []);
         }
         setLoading(false);
-    }, [user]);
+    }, [user, toast]);
 
     useEffect(() => { fetch(); }, [fetch]);
 

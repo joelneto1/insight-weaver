@@ -16,7 +16,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
-import { useCanais } from "@/hooks/useCanais";
+import { useCanais, type Canal } from "@/hooks/useCanais";
 import { useVideos, type Video, type VideoInsert } from "@/hooks/useVideos";
 import { useKanbanColumns, type KanbanColumn } from "@/hooks/useKanbanColumns";
 import PageHeader from "@/components/PageHeader";
@@ -147,14 +147,14 @@ function DroppableColumn({ id, title, children, attributes, listeners, onEditTit
   );
 }
 
-function SortableCard({ video, canais, onEdit, onDelete }: { video: Video; canais: { id: string; nome: string }[]; onEdit: () => void; onDelete: () => void }) {
+function SortableCard({ video, canais, onEdit, onDelete }: { video: Video; canais: Canal[]; onEdit: () => void; onDelete: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: video.id,
     data: { type: "Video", video }
   });
 
   const style = { transform: CSS.Transform.toString(transform), transition };
-  const canalName = canais.find((c) => c.id === video.canal_id)?.nome;
+  const canal = canais.find((c) => c.id === video.canal_id);
 
   return (
     <div
@@ -172,9 +172,15 @@ function SortableCard({ video, canais, onEdit, onDelete }: { video: Video; canai
         {/* Removed GripVertical button, whole card is draggable */}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-foreground truncate">{video.titulo}</p>
-          {canalName && (
-            <div className="flex items-center gap-1 mt-1.5 text-xs text-muted-foreground">
-              <Tv className="w-3 h-3" /> {canalName}
+          {canal && (
+            <div className="flex flex-col gap-1 mt-1.5">
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Tv className="w-3 h-3" /> {canal.nome}
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {canal.idioma && <span className="text-[10px] bg-secondary px-1.5 py-0.5 rounded text-muted-foreground">{canal.idioma}</span>}
+                {canal.nicho && <span className="text-[10px] bg-secondary px-1.5 py-0.5 rounded text-muted-foreground">{canal.nicho}</span>}
+              </div>
             </div>
           )}
           {video.data_postagem && (
@@ -201,14 +207,22 @@ function SortableCard({ video, canais, onEdit, onDelete }: { video: Video; canai
   );
 }
 
-function DragOverlayCard({ video, canais }: { video: Video; canais: { id: string; nome: string }[] }) {
-  const canalName = canais.find((c) => c.id === video.canal_id)?.nome;
+function DragOverlayCard({ video, canais }: { video: Video; canais: Canal[] }) {
+  const canal = canais.find((c) => c.id === video.canal_id);
   return (
     <div className="bg-card border-2 border-primary/40 rounded-lg p-3 shadow-2xl rotate-[3deg] scale-105 cursor-grabbing">
       <div className="flex items-start gap-2">
         <div>
           <p className="text-sm font-medium text-foreground">{video.titulo}</p>
-          {canalName && <p className="text-xs text-muted-foreground mt-1">{canalName}</p>}
+          {canal && (
+            <div className="mt-1">
+              <p className="text-xs text-muted-foreground">{canal.nome}</p>
+              <div className="flex gap-1 mt-1">
+                {canal.idioma && <span className="text-[10px] bg-secondary px-1.5 py-0.5 rounded text-muted-foreground">{canal.idioma}</span>}
+                {canal.nicho && <span className="text-[10px] bg-secondary px-1.5 py-0.5 rounded text-muted-foreground">{canal.nicho}</span>}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -91,7 +91,7 @@ export function useKanbanColumns() {
             return false;
         }
 
-        toast({ title: "Coluna ecluída!" });
+        toast({ title: "Coluna excluída!" });
         await fetchColumns();
         return true;
     };
