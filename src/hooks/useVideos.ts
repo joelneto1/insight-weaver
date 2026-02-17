@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
 
-export type Video = Tables<"videos">;
+export type Video = Tables<"videos"> & { position: number };
 export type VideoStatus = "planejamento" | "roteiro" | "gravado" | "upload" | "postado";
 export type VideoInsert = Omit<Video, "id" | "created_at" | "updated_at" | "user_id">;
 
@@ -37,11 +37,12 @@ export function useVideos() {
             .from("videos")
             .select("*")
             .eq("user_id", user.id)
+            .order("position", { ascending: true })
             .order("created_at", { ascending: true });
         if (error) {
             toast({ title: "Erro ao carregar vídeos", description: error.message, variant: "destructive" });
         } else {
-            setVideos(data || []);
+            setVideos((data as Video[]) || []);
         }
         setLoading(false);
     }, [user]);
@@ -97,15 +98,26 @@ export function useVideos() {
 
     const bulkUpdate = async (updates: { id: string; data: Partial<VideoInsert> }[]) => {
         if (!user) return false;
-        for (const u of updates) {
-            await supabase
-                .from("videos")
-                .update(u.data)
-                .eq("id", u.id)
-                .eq("user_id", user.id);
+        try {
+            setLoading(true); // Optimistic UI or loading indicator
+            // Ideally use an RPC function for batch updates, but sequential is okay for small batches
+            await Promise.all(updates.map(u =>
+                supabase
+                    .from("videos")
+                    .update(u.data)
+                    .eq("id", u.id)
+                    .eq("user_id", user.id)
+            ));
+            await fetch();
+            return true;
+        } catch (error) {
+            console.error("Bulk update failed:", error);
+            toast({ title: "Erro ao atualizar ordem", variant: "destructive" });
+            await fetch(); // Revert/refresh
+            return false;
+        } finally {
+            setLoading(false);
         }
-        await fetch();
-        return true;
     };
 
     return { videos, loading, create, update, remove, bulkUpdate, refetch: fetch };
