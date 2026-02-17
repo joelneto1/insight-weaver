@@ -8,7 +8,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { useCanais, type CanalInsert } from "@/hooks/useCanais";
-import { useVideos, STATUS_LABELS, STATUS_COLORS, type VideoStatus } from "@/hooks/useVideos";
+import { useVideos } from "@/hooks/useVideos";
+import { useKanbanColumns } from "@/hooks/useKanbanColumns";
 import PageHeader from "@/components/PageHeader";
 import EmptyState from "@/components/EmptyState";
 import { SkeletonStatCard } from "@/components/SkeletonCard";
@@ -21,8 +22,10 @@ const EMPTY_FORM: CanalInsert = {
 
 export default function Canais() {
   const { toast } = useToast();
-  const { canais, loading, create, update, remove } = useCanais();
-  const { videos } = useVideos();
+  const { canais, loading: loadingCanais, create, update, remove } = useCanais();
+  const { videos, loading: loadingVideos } = useVideos();
+  const { columns, loading: loadingColumns } = useKanbanColumns();
+
   const [selectedCanal, setSelectedCanal] = useState<string>("");
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<CanalInsert>(EMPTY_FORM);
@@ -31,6 +34,9 @@ export default function Canais() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const loading = loadingCanais || loadingVideos || loadingColumns;
+
+  // Find selected canal or default to first
   const canal = canais.find((c) => c.id === selectedCanal) || canais[0];
 
   // Auto-select first canal
@@ -39,10 +45,18 @@ export default function Canais() {
   }
 
   const canalVideos = canal ? videos.filter((v) => v.canal_id === canal.id) : [];
-  const statusCounts = (Object.keys(STATUS_LABELS) as VideoStatus[]).reduce((acc, s) => {
-    acc[s] = canalVideos.filter((v) => v.status === s).length;
+
+  // Calculate dynamic status counts
+  const statusCounts = columns.reduce((acc, col) => {
+    acc[col.id] = canalVideos.filter((v) => v.column_id === col.id).length;
     return acc;
-  }, {} as Record<VideoStatus, number>);
+  }, {} as Record<string, number>);
+
+  // Helper for colors (cycle through generic palette)
+  const getColumnColor = (index: number) => {
+    const colors = ["bg-cyan-500", "bg-blue-500", "bg-emerald-500", "bg-amber-500", "bg-purple-500", "bg-pink-500"];
+    return colors[index % colors.length];
+  };
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -94,19 +108,9 @@ export default function Canais() {
     setDeleteId(null);
   };
 
-  if (!loading && canais.length === 0) {
-    return (
-      <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-        <PageHeader title="Gestão de Canais" description="Selecione um canal e gerencie seus vídeos">
-          <Button onClick={handleOpenCreate} className="gradient-accent text-primary-foreground gap-2">
-            <Plus className="w-4 h-4" /> Novo Canal
-          </Button>
-        </PageHeader>
-        <EmptyState icon={Tv} title="Nenhum canal cadastrado" description="Crie seu primeiro canal para começar a organizar seus vídeos." actionLabel="Criar Primeiro Canal" onAction={handleOpenCreate} />
-        {renderModal()}
-      </div>
-    );
-  }
+  const handleSelectChange = (val: string) => {
+    setSelectedCanal(val);
+  };
 
   function renderModal() {
     return (
@@ -146,6 +150,20 @@ export default function Canais() {
     );
   }
 
+  if (!loading && canais.length === 0) {
+    return (
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+        <PageHeader title="Gestão de Canais" description="Selecione um canal e gerencie seus vídeos">
+          <Button onClick={handleOpenCreate} className="gradient-accent text-primary-foreground gap-2">
+            <Plus className="w-4 h-4" /> Novo Canal
+          </Button>
+        </PageHeader>
+        <EmptyState icon={Tv} title="Nenhum canal cadastrado" description="Crie seu primeiro canal para começar a organizar seus vídeos." actionLabel="Criar Primeiro Canal" onAction={handleOpenCreate} />
+        {renderModal()}
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">
       <PageHeader title="Gestão de Canais" description="Selecione um canal e gerencie seus vídeos">
@@ -159,7 +177,7 @@ export default function Canais() {
         {loading ? (
           <div className="animate-pulse h-10 w-64 bg-muted/60 rounded-md" />
         ) : (
-          <Select value={selectedCanal || canal?.id || ""} onValueChange={setSelectedCanal}>
+          <Select value={selectedCanal || canal?.id || ""} onValueChange={handleSelectChange}>
             <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
             <SelectContent>
               {canais.map((c) => (
@@ -202,31 +220,40 @@ export default function Canais() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {(Object.keys(STATUS_LABELS) as VideoStatus[]).map((s) => (
-              <div key={s} className="bg-secondary/50 rounded-lg p-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {columns.map((col, index) => (
+              <div key={col.id} className="bg-secondary/50 rounded-lg p-3">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <div className={`w-2 h-2 rounded-full ${STATUS_COLORS[s]}`} />
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{STATUS_LABELS[s]}</span>
+                  <div className={`w-2 h-2 rounded-full ${getColumnColor(index)}`} />
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide truncate">{col.title}</span>
                 </div>
-                <p className="text-2xl font-bold text-foreground">{statusCounts[s]}</p>
+                <p className="text-2xl font-bold text-foreground">{statusCounts[col.id] || 0}</p>
               </div>
             ))}
           </div>
 
-          <p className="text-xs text-primary font-medium">📅 Frequência: {canal.frequencia}</p>
-
-          {(canal.nicho || canal.subnicho || canal.micronicho) && (
-            <div className="bg-status-planning/10 border-l-4 border-status-planning rounded p-3 relative group">
-              <p className="text-sm text-foreground">
-                Nicho: {canal.nicho || "—"}, Subnicho: {canal.subnicho || "—"}, Micronicho: {canal.micronicho || "—"}
-              </p>
-              <button onClick={() => copyToClipboard(`Nicho: ${canal.nicho}, Subnicho: ${canal.subnicho}, Micronicho: ${canal.micronicho}`, "Nicho")}
-                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-background/50 rounded hover:bg-background">
-                <Copy className="w-3 h-3 text-muted-foreground" />
-              </button>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-primary font-medium mb-1">📅 Frequência</p>
+              <div className="bg-secondary/30 p-2 rounded text-sm">{canal.frequencia}</div>
             </div>
-          )}
+            {(canal.nicho || canal.subnicho || canal.micronicho) && (
+              <div>
+                <p className="text-xs text-primary font-medium mb-1">🎯 Segmentação</p>
+                <div className="bg-secondary/30 p-2 rounded relative group">
+                  <p className="text-sm text-foreground">
+                    {canal.nicho && <span className="mr-2"><strong>Nicho:</strong> {canal.nicho}</span>}
+                    {canal.subnicho && <span className="mr-2"><strong>Sub:</strong> {canal.subnicho}</span>}
+                    {canal.micronicho && <span className="mr-2"><strong>Micro:</strong> {canal.micronicho}</span>}
+                  </p>
+                  <button onClick={() => copyToClipboard(`Nicho: ${canal.nicho}, Subnicho: ${canal.subnicho}, Micronicho: ${canal.micronicho}`, "Nicho")}
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-background/50 rounded hover:bg-background">
+                    <Copy className="w-3 h-3 text-muted-foreground" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </motion.div>
       )}
 
