@@ -3,26 +3,73 @@ import {
   DndContext, closestCorners, DragOverlay, type DragStartEvent, type DragEndEvent,
   useSensor, useSensors, PointerSensor, TouchSensor,
 } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
+import { SortableContext, verticalListSortingStrategy, horizontalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { Plus, GripVertical, MoreVertical, Trash2, Edit2, Tv, CalendarDays, X, Check } from "lucide-react";
+import { Plus, MoreVertical, Trash2, Edit2, Tv, Calendar as CalendarIcon, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { motion } from "framer-motion";
+import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
 import { useCanais } from "@/hooks/useCanais";
 import { useVideos, type Video, type VideoInsert } from "@/hooks/useVideos";
 import { useKanbanColumns, type KanbanColumn } from "@/hooks/useKanbanColumns";
 import PageHeader from "@/components/PageHeader";
 import EmptyState from "@/components/EmptyState";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
-function DroppableColumn({ id, title, children, onEditTitle, onDelete, onAddVideo }: { id: string; title: string; children: React.ReactNode, onEditTitle: (newTitle: string) => void, onDelete: () => void, onAddVideo: () => void }) {
+// --- Sortable Column Wrapper ---
+function SortableColumn({ column, children, onEditTitle, onDelete, onAddVideo }: {
+  column: KanbanColumn;
+  children: React.ReactNode;
+  onEditTitle: (newTitle: string) => void;
+  onDelete: () => void;
+  onAddVideo: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: column.id,
+    data: { type: "Column", column }
+  });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className={cn("flex flex-col h-full", isDragging && "opacity-50")}>
+      <DroppableColumn
+        id={column.id}
+        title={column.title}
+        attributes={attributes}
+        listeners={listeners}
+        onEditTitle={onEditTitle}
+        onDelete={onDelete}
+        onAddVideo={onAddVideo}
+      >
+        {children}
+      </DroppableColumn>
+    </div>
+  );
+}
+
+function DroppableColumn({ id, title, children, attributes, listeners, onEditTitle, onDelete, onAddVideo }: {
+  id: string;
+  title: string;
+  children: React.ReactNode;
+  attributes: any;
+  listeners: any;
+  onEditTitle: (newTitle: string) => void;
+  onDelete: () => void;
+  onAddVideo: () => void;
+}) {
   const { setNodeRef, isOver } = useDroppable({ id });
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(title);
@@ -35,24 +82,49 @@ function DroppableColumn({ id, title, children, onEditTitle, onDelete, onAddVide
   };
 
   return (
-    <div className="bg-secondary/30 rounded-xl border border-border/40 p-3 flex flex-col min-w-[280px] h-full">
-      <div className="flex items-center justify-between mb-3 px-1 group/col">
+    <div className="bg-secondary/30 rounded-xl border border-border/40 p-3 flex flex-col min-w-[280px] w-[300px] h-full shadow-sm">
+      {/* Header - Drag Handle is valid here */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="flex items-center justify-between mb-3 px-1 group/col cursor-grab active:cursor-grabbing"
+      >
         {isEditing ? (
-          <div className="flex items-center gap-1 flex-1 mr-2">
-            <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="h-7 text-sm py-1 px-2" autoFocus />
-            <Button size="icon" variant="ghost" className="h-7 w-7 text-green-500" onClick={handleSaveTitle}><Check className="w-4 h-4" /></Button>
-            <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => setIsEditing(false)}><X className="w-4 h-4" /></Button>
+          <div className="flex items-center gap-1 flex-1 mr-2" onPointerDown={(e) => e.stopPropagation()}>
+            <Input
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              className="h-7 text-sm py-1 px-2"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSaveTitle();
+              }}
+            />
+            <Button size="icon" variant="ghost" className="h-7 w-7 text-green-500" onClick={handleSaveTitle}>
+              <Check className="w-4 h-4" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => setIsEditing(false)}>
+              <X className="w-4 h-4" />
+            </Button>
           </div>
         ) : (
-          <div className="flex items-center gap-2 flex-1 cursor-pointer" onDoubleClick={() => setIsEditing(true)}>
-            <span className="text-sm font-semibold text-foreground truncate">{title}</span>
+          <div className="flex items-center gap-2 flex-1">
+            <span
+              className="text-sm font-semibold text-foreground truncate"
+              onDoubleClick={(e) => {
+                e.stopPropagation(); // Prevent drag start on double click if possible, though dnd-kit usually handles distinct gestures
+                setIsEditing(true);
+              }}
+            >
+              {title}
+            </span>
             <span className="text-xs text-muted-foreground bg-secondary/80 px-1.5 py-0.5 rounded-full font-medium">
               {Array.isArray(children) ? children.length : 0}
             </span>
           </div>
         )}
 
-        <div className="flex items-center opacity-0 group-hover/col:opacity-100 transition-opacity">
+        <div className="flex items-center opacity-0 group-hover/col:opacity-100 transition-opacity" onPointerDown={(e) => e.stopPropagation()}>
           <button onClick={onAddVideo} className="p-1 rounded hover:bg-secondary transition-colors mr-1" title="Adicionar vídeo">
             <Plus className="w-3.5 h-3.5 text-muted-foreground" />
           </button>
@@ -68,7 +140,7 @@ function DroppableColumn({ id, title, children, onEditTitle, onDelete, onAddVide
         </div>
       </div>
 
-      <div ref={setNodeRef} className={`flex-1 min-h-[150px] space-y-2 transition-colors duration-200 rounded-lg p-1 ${isOver ? "bg-primary/5 ring-2 ring-primary/20 ring-dashed" : ""}`}>
+      <div ref={setNodeRef} className={cn("flex-1 min-h-[150px] space-y-2 transition-colors duration-200 rounded-lg p-1", isOver && "bg-primary/5 ring-2 ring-primary/20 ring-dashed")}>
         {children}
       </div>
     </div>
@@ -76,18 +148,29 @@ function DroppableColumn({ id, title, children, onEditTitle, onDelete, onAddVide
 }
 
 function SortableCard({ video, canais, onEdit, onDelete }: { video: Video; canais: { id: string; nome: string }[]; onEdit: () => void; onDelete: () => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: video.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: video.id,
+    data: { type: "Video", video }
+  });
+
   const style = { transform: CSS.Transform.toString(transform), transition };
   const canalName = canais.find((c) => c.id === video.canal_id)?.nome;
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes}
-      className={`bg-card border border-border/50 rounded-lg p-3 group hover:border-primary/30 transition-all duration-200 ${isDragging ? "opacity-50 shadow-lg scale-105 rotate-[2deg] z-50" : ""}`}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={cn(
+        "bg-card border border-border/50 rounded-lg p-3 group hover:border-primary/30 transition-all duration-200 cursor-grab active:cursor-grabbing",
+        isDragging && "opacity-50 shadow-lg scale-105 rotate-[2deg] z-50"
+      )}
+      onClick={onEdit} // Click to edit unless dragging
+    >
       <div className="flex items-start gap-2">
-        <button {...listeners} className="mt-1 cursor-grab active:cursor-grabbing opacity-30 group-hover:opacity-60 transition-opacity shrink-0">
-          <GripVertical className="w-4 h-4" />
-        </button>
-        <div className="flex-1 min-w-0 cursor-pointer" onClick={onEdit}>
+        {/* Removed GripVertical button, whole card is draggable */}
+        <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-foreground truncate">{video.titulo}</p>
           {canalName && (
             <div className="flex items-center gap-1 mt-1.5 text-xs text-muted-foreground">
@@ -96,20 +179,23 @@ function SortableCard({ video, canais, onEdit, onDelete }: { video: Video; canai
           )}
           {video.data_postagem && (
             <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-              <CalendarDays className="w-3 h-3" />
-              {new Date(video.data_postagem + "T00:00:00").toLocaleDateString("pt-BR")}
+              <CalendarIcon className="w-3 h-3" />
+              {/* Ensure standard display format */}
+              {format(new Date(video.data_postagem + "T00:00:00"), "dd/MM/yyyy")}
             </div>
           )}
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-secondary"><MoreVertical className="w-3.5 h-3.5 text-muted-foreground" /></button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onEdit} className="gap-2"><Edit2 className="w-3.5 h-3.5" /> Editar</DropdownMenuItem>
-            <DropdownMenuItem onClick={onDelete} className="gap-2 text-destructive"><Trash2 className="w-3.5 h-3.5" /> Excluir</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-secondary"><MoreVertical className="w-3.5 h-3.5 text-muted-foreground" /></button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onEdit} className="gap-2"><Edit2 className="w-3.5 h-3.5" /> Editar</DropdownMenuItem>
+              <DropdownMenuItem onClick={onDelete} className="gap-2 text-destructive"><Trash2 className="w-3.5 h-3.5" /> Excluir</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </div>
   );
@@ -120,7 +206,6 @@ function DragOverlayCard({ video, canais }: { video: Video; canais: { id: string
   return (
     <div className="bg-card border-2 border-primary/40 rounded-lg p-3 shadow-2xl rotate-[3deg] scale-105 cursor-grabbing">
       <div className="flex items-start gap-2">
-        <GripVertical className="w-4 h-4 mt-1 text-primary" />
         <div>
           <p className="text-sm font-medium text-foreground">{video.titulo}</p>
           {canalName && <p className="text-xs text-muted-foreground mt-1">{canalName}</p>}
@@ -130,15 +215,36 @@ function DragOverlayCard({ video, canais }: { video: Video; canais: { id: string
   );
 }
 
+// Overlay for dragging column
+function DragOverlayColumn({ column, children }: { column: KanbanColumn; children: React.ReactNode }) {
+  return (
+    <div className="bg-background/80 backdrop-blur rounded-xl border-2 border-primary/50 p-3 flex flex-col w-[300px] h-full shadow-2xl opacity-80 cursor-grabbing">
+      <div className="flex items-center justify-between mb-3 px-1">
+        <div className="flex items-center gap-2 flex-1">
+          <span className="text-sm font-semibold text-foreground truncate">{column.title}</span>
+          <span className="text-xs text-muted-foreground bg-secondary/80 px-1.5 py-0.5 rounded-full font-medium">
+            {Array.isArray(children) ? children.length : 0}
+          </span>
+        </div>
+      </div>
+      <div className="flex-1 min-h-[150px] space-y-2 p-1">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+
 const EMPTY_FORM: VideoInsert = { titulo: "", column_id: null, canal_id: null, data_postagem: null, position: 0 };
 
 export default function Kanban() {
   const { toast } = useToast();
   const { canais } = useCanais();
-  const { columns, loading: loadingCols, addColumn, updateColumn, deleteColumn } = useKanbanColumns();
+  const { columns, loading: loadingCols, addColumn, updateColumn, deleteColumn, reorderColumns } = useKanbanColumns();
   const { videos, loading: loadingVideos, create, update, remove, bulkUpdate } = useVideos();
 
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeColumn, setActiveColumn] = useState<KanbanColumn | null>(null);
+  const [activeVideo, setActiveVideo] = useState<Video | null>(null);
 
   // Modals state
   const [showVideoModal, setShowVideoModal] = useState(false);
@@ -160,39 +266,54 @@ export default function Kanban() {
     const result: Record<string, Video[]> = {};
     columns.forEach(col => { result[col.id] = []; });
 
-    // Add logic for videos possibly without valid column (fallback)
     const fallbackId = columns[0]?.id;
 
     videos.forEach((v) => {
       if (v.column_id && result[v.column_id]) {
         result[v.column_id].push(v);
-      } else if (fallbackId) {
-        // If column missing, put in first column temporarily? Or ignore.
-        // Better to display them somewhere.
-        // result[fallbackId].push(v); 
+      } else if (fallbackId && !v.column_id) {
+        // Should we handle unassigned videos? For now, ignoring or let backend handle.
       }
     });
     return result;
   }, [videos, columns]);
 
-  const activeVideo = activeId ? videos.find((v) => v.id === activeId) : null;
-
   const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(String(event.active.id));
+    if (event.active.data.current?.type === "Column") {
+      setActiveColumn(event.active.data.current.column);
+      return;
+    }
+    if (event.active.data.current?.type === "Video") {
+      setActiveVideo(event.active.data.current.video);
+      return;
+    }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
-    setActiveId(null);
+    setActiveColumn(null);
+    setActiveVideo(null);
     const { active, over } = event;
     if (!over) return;
 
     const activeId = String(active.id);
     const overId = String(over.id);
-    const activeVideo = videos.find((v) => v.id === activeId);
 
-    if (!activeVideo) return;
+    // Handling Column Reordering
+    if (active.data.current?.type === "Column") {
+      if (activeId === overId) return;
+      const oldIndex = columns.findIndex((c) => c.id === activeId);
+      const newIndex = columns.findIndex((c) => c.id === overId);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newOrder = arrayMove(columns, oldIndex, newIndex);
+        reorderColumns(newOrder);
+      }
+      return;
+    }
 
-    // Determine target column and new index
+    // Handling Video Reordering
+    const video = videos.find((v) => v.id === activeId);
+    if (!video) return;
+
     let targetColumnId: string | null = null;
     let newIndex = 0;
 
@@ -201,6 +322,7 @@ export default function Kanban() {
 
     if (isOverColumn) {
       targetColumnId = overId;
+      // If over column, put at end
       newIndex = columnVideos[targetColumnId]?.length || 0;
     } else {
       // Over a card
@@ -214,8 +336,8 @@ export default function Kanban() {
 
     if (!targetColumnId) return;
 
-    const sourceColumnId = activeVideo.column_id;
-    if (!sourceColumnId) return; // Should not happen with valid data
+    const sourceColumnId = video.column_id;
+    if (!sourceColumnId) return;
 
     if (sourceColumnId === targetColumnId) {
       // Reordering in same column
@@ -228,7 +350,6 @@ export default function Kanban() {
           id: v.id,
           data: { position: index }
         }));
-        // Optimistic / Bulk Update
         const updatesWithMeta = updates.map(u => ({ id: u.id, data: { ...u.data, column_id: sourceColumnId } }));
         bulkUpdate(updatesWithMeta);
       }
@@ -237,12 +358,7 @@ export default function Kanban() {
       const targetList = columnVideos[targetColumnId];
       const newTargetList = [...targetList];
 
-      // Calculate splice logic correctly?
-      // arrayMove is not for moving between lists.
-      // We insert at newIndex.
-      // Make sure we don't duplicate. activeVideo is NOT in targetList yet.
-
-      newTargetList.splice(newIndex, 0, activeVideo);
+      newTargetList.splice(newIndex, 0, video);
 
       const updates = newTargetList.map((v, index) => ({
         id: v.id,
@@ -310,7 +426,6 @@ export default function Kanban() {
 
   const handleDeleteColumnConfirm = async () => {
     if (!deleteColumnId) return;
-    // Check if column has videos?
     const hasVideos = videos.some(v => v.column_id === deleteColumnId);
     if (hasVideos) {
       toast({ title: "Ação bloqueada", description: "Remova ou mova os vídeos desta coluna antes de excluir.", variant: "destructive" });
@@ -334,33 +449,42 @@ export default function Kanban() {
       </PageHeader>
 
       {(loadingVideos || loadingCols) && videos.length === 0 && columns.length === 0 ? (
-        <div className="flex items-center justify-center h-64">Loading...</div> // Better skeleton
+        <div className="flex items-center justify-center h-64">Loading...</div>
       ) : columns.length === 0 ? (
         <EmptyState icon={Tv} title="Nenhuma coluna configurada" description="Crie sua primeira coluna para começar (ex: Planejamento)." actionLabel="Criar Coluna" onAction={() => setShowColumnModal(true)} />
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4">
-            <div className="flex gap-4 h-full min-w-max px-1">
-              {columns.map((col) => (
-                <div key={col.id} className="w-[300px] flex-shrink-0 flex flex-col">
-                  <SortableContext items={(columnVideos[col.id] || []).map((v) => v.id)} strategy={verticalListSortingStrategy}>
-                    <DroppableColumn
-                      id={col.id}
-                      title={col.title}
-                      onEditTitle={(newTitle) => updateColumn(col.id, { title: newTitle })}
-                      onDelete={() => setDeleteColumnId(col.id)}
-                      onAddVideo={() => handleCreateVideo(col.id)}
-                    >
+            <SortableContext items={columns.map(c => c.id)} strategy={horizontalListSortingStrategy}>
+              <div className="flex gap-4 h-full min-w-max px-1 items-start">
+                {columns.map((col) => (
+                  <SortableColumn
+                    key={col.id}
+                    column={col}
+                    onEditTitle={(newTitle) => updateColumn(col.id, { title: newTitle })}
+                    onDelete={() => setDeleteColumnId(col.id)}
+                    onAddVideo={() => handleCreateVideo(col.id)}
+                  >
+                    <SortableContext items={(columnVideos[col.id] || []).map((v) => v.id)} strategy={verticalListSortingStrategy}>
                       {(columnVideos[col.id] || []).map((video) => (
                         <SortableCard key={video.id} video={video} canais={canais} onEdit={() => handleEditVideo(video)} onDelete={() => setDeleteVideoId(video.id)} />
                       ))}
-                    </DroppableColumn>
-                  </SortableContext>
-                </div>
-              ))}
-            </div>
+                    </SortableContext>
+                  </SortableColumn>
+                ))}
+              </div>
+            </SortableContext>
           </div>
           <DragOverlay>
+            {activeColumn && (
+              <DragOverlayColumn column={activeColumn}>
+                {columnVideos[activeColumn.id]?.map(video => (
+                  <div key={video.id} className="bg-card border border-border/50 rounded-lg p-3 opacity-50">
+                    <p className="text-sm font-medium">{video.titulo}</p>
+                  </div>
+                ))}
+              </DragOverlayColumn>
+            )}
             {activeVideo && <DragOverlayCard video={activeVideo} canais={canais} />}
           </DragOverlay>
         </DndContext>
@@ -393,7 +517,27 @@ export default function Kanban() {
             </div>
             <div className="space-y-1">
               <label className="text-sm font-medium">Data de Postagem</label>
-              <Input type="date" value={videoForm.data_postagem || ""} onChange={(e) => setVideoForm({ ...videoForm, data_postagem: e.target.value || null })} />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !videoForm.data_postagem && "text-muted-foreground")}>
+                    {videoForm.data_postagem ? (
+                      format(new Date(videoForm.data_postagem + "T00:00:00"), "dd/MM/yyyy")
+                    ) : (
+                      <span>DD/MM/AAAA</span>
+                    )}
+                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={videoForm.data_postagem ? new Date(videoForm.data_postagem + "T00:00:00") : undefined}
+                    onSelect={(date) => setVideoForm({ ...videoForm, data_postagem: date ? format(date, "yyyy-MM-dd") : null })}
+                    initialFocus
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
           <div className="flex justify-between w-full">
