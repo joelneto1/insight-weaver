@@ -5,24 +5,8 @@ import { useToast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
 
 export type Video = Tables<"videos"> & { position: number };
-export type VideoStatus = "planejamento" | "roteiro" | "gravado" | "upload" | "postado";
+// VideoInsert should rely on column_id instead of status
 export type VideoInsert = Omit<Video, "id" | "created_at" | "updated_at" | "user_id">;
-
-export const STATUS_LABELS: Record<VideoStatus, string> = {
-    planejamento: "Planejamento",
-    roteiro: "Roteiro",
-    gravado: "Gravado",
-    upload: "Upload",
-    postado: "Postado",
-};
-
-export const STATUS_COLORS: Record<VideoStatus, string> = {
-    planejamento: "bg-yellow-500",
-    roteiro: "bg-orange-500",
-    gravado: "bg-emerald-500",
-    upload: "bg-blue-500",
-    postado: "bg-purple-500",
-};
 
 export function useVideos() {
     const { user } = useAuth();
@@ -37,20 +21,29 @@ export function useVideos() {
             .from("videos")
             .select("*")
             .eq("user_id", user.id)
-            .order("position", { ascending: true })
-            .order("created_at", { ascending: true });
+            .order("column_id", { ascending: true }) // Group by column if needed for initial sorting
+            .order("position", { ascending: true }); // Within column
+
         if (error) {
             toast({ title: "Erro ao carregar vídeos", description: error.message, variant: "destructive" });
         } else {
+            console.log("Fetched videos:", data);
             setVideos((data as Video[]) || []);
         }
         setLoading(false);
-    }, [user]);
+    }, [user, toast]);
 
     useEffect(() => { fetch(); }, [fetch]);
 
     const create = async (video: VideoInsert) => {
         if (!user) return null;
+        // Ensure column_id is present?
+        if (!video.column_id) {
+            // Fallback logic? Or require it. The UI should provide a default column.
+            // We can default to the first column if missing, but let's assume UI handles it.
+            console.warn("create video: column_id is missing");
+        }
+
         const { data, error } = await supabase
             .from("videos")
             .insert({ ...video, user_id: user.id })
@@ -60,22 +53,26 @@ export function useVideos() {
             toast({ title: "Erro ao criar vídeo", description: error.message, variant: "destructive" });
             return null;
         }
-        toast({ title: "Vídeo criado!" });
+        toast({ title: "Vídeo criado!", description: "O vídeo foi adicionado à coluna selecionada." });
         await fetch();
-        return data;
+        return data as Video;
     };
 
     const update = async (id: string, video: Partial<VideoInsert>) => {
         if (!user) return false;
+
         const { error } = await supabase
             .from("videos")
             .update(video)
             .eq("id", id)
             .eq("user_id", user.id);
+
         if (error) {
             toast({ title: "Erro ao atualizar vídeo", description: error.message, variant: "destructive" });
             return false;
         }
+        // Optimistic update locally could be done here instead of fetch...
+        // But fetch ensures consistency with other users/sessions.
         await fetch();
         return true;
     };
@@ -100,7 +97,9 @@ export function useVideos() {
         if (!user) return false;
         try {
             setLoading(true); // Optimistic UI or loading indicator
-            // Ideally use an RPC function for batch updates, but sequential is okay for small batches
+            // Sequential is safer for order-sensitive updates if they depend on each other,
+            // but for independent rows, parallelism is fine.
+            // Using Promise.all for speed.
             await Promise.all(updates.map(u =>
                 supabase
                     .from("videos")
