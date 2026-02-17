@@ -6,7 +6,8 @@ import { Link } from "react-router-dom";
 import { formatDate } from "@/lib/utils";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useCanais } from "@/hooks/useCanais";
-import { useVideos, STATUS_LABELS, STATUS_COLORS, type VideoStatus } from "@/hooks/useVideos";
+import { useVideos } from "@/hooks/useVideos";
+import { useKanbanColumns } from "@/hooks/useKanbanColumns";
 import { SkeletonStatCard, SkeletonChannelCard, SkeletonListItem, SkeletonChart } from "@/components/SkeletonCard";
 import EmptyState from "@/components/EmptyState";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -22,19 +23,26 @@ export default function Dashboard() {
   const { profile, user } = useAuth();
   const { canais, loading: loadingCanais } = useCanais();
   const { videos, loading: loadingVideos } = useVideos();
+  const { columns, loading: loadingColumns } = useKanbanColumns();
   const { isDark } = useTheme();
 
-  const loading = loadingCanais || loadingVideos;
+  const loading = loadingCanais || loadingVideos || loadingColumns;
 
-  const statusCounts = useMemo(() =>
-    (Object.keys(STATUS_LABELS) as VideoStatus[]).reduce((acc, status) => {
-      acc[status] = videos.filter((v) => v.status === status).length;
-      return acc;
-    }, {} as Record<VideoStatus, number>),
-    [videos]);
+  // Calculate counts per column
+  const columnCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    columns.forEach(col => {
+      counts[col.id] = videos.filter(v => v.column_id === col.id).length;
+    });
+    return counts;
+  }, [videos, columns]);
 
   const totalVideos = videos.length;
-  const postados = statusCounts.postado || 0;
+  // Assuming the last column is "completed" or simply showing total progress
+  // For a generic approach, we might not know which is "posted". 
+  // But we can try to guess by title or just use the last column.
+  const lastColumn = columns[columns.length - 1];
+  const postados = lastColumn ? (columnCounts[lastColumn.id] || 0) : 0;
   const emProducao = totalVideos - postados;
   const taxaConclusao = totalVideos > 0 ? Math.round((postados / totalVideos) * 100) : 0;
 
@@ -62,7 +70,7 @@ export default function Dashboard() {
 
   const statCards = [
     { label: "Total Vídeos", value: totalVideos, icon: BarChart3, colorClass: "stat-card-cyan", iconBg: "bg-cyan-500/20", iconColor: "text-cyan-400" },
-    { label: "Publicados", value: postados, icon: CheckCircle, colorClass: "stat-card-emerald", iconBg: "bg-emerald-500/20", iconColor: "text-emerald-400" },
+    { label: "Concluídos", value: postados, icon: CheckCircle, colorClass: "stat-card-emerald", iconBg: "bg-emerald-500/20", iconColor: "text-emerald-400" },
     { label: "Em Produção", value: emProducao, icon: Clock, colorClass: "stat-card-amber", iconBg: "bg-amber-500/20", iconColor: "text-amber-400" },
     { label: "Taxa de Conclusão", value: `${taxaConclusao}%`, icon: TrendingUp, colorClass: "stat-card-purple", iconBg: "bg-purple-500/20", iconColor: "text-purple-400" },
   ];
@@ -108,7 +116,9 @@ export default function Dashboard() {
           : canais.map((canal, i) => {
             const style = CHANNEL_STYLES[i % CHANNEL_STYLES.length];
             const canalVideos = videos.filter((v) => v.canal_id === canal.id);
-            const canalPostados = canalVideos.filter((v) => v.status === "postado").length;
+            // Count "completed" videos (last column)
+            const completedCount = lastColumn ? canalVideos.filter(v => v.column_id === lastColumn.id).length : 0;
+
             return (
               <motion.div key={canal.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
                 <Link to="/canais" className="block bg-card border border-border/50 rounded-xl p-4 sm:p-5 hover:border-primary/30 transition-all duration-300 group">
@@ -126,9 +136,9 @@ export default function Dashboard() {
                       <p className="text-xl sm:text-2xl font-extrabold text-foreground">{canalVideos.length}</p>
                       <p className="text-[9px] sm:text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mt-0.5">VÍDEOS</p>
                     </div>
-                    <div className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${canalPostados > 0 ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"}`}>
-                      {canalPostados > 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                      {canalPostados} postados
+                    <div className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${completedCount > 0 ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"}`}>
+                      {completedCount > 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                      {completedCount} concluídos
                     </div>
                   </div>
                 </Link>
@@ -234,7 +244,10 @@ export default function Dashboard() {
                 const canal = canais.find((c) => c.id === video.canal_id);
                 const styleIdx = canais.findIndex((c) => c.id === video.canal_id);
                 const style = CHANNEL_STYLES[Math.max(0, styleIdx) % CHANNEL_STYLES.length];
-                const StatusIcon = video.status === "postado" ? CheckCircle : video.status === "upload" ? Upload : FileText;
+                // Try to find column name
+                const colName = columns.find(c => c.id === video.column_id)?.title || "Sem Status";
+                const StatusIcon = colName.toLowerCase() === "postado" ? CheckCircle : FileText;
+
                 return (
                   <div key={video.id} className="flex items-center gap-4 py-3 border-b border-border/30 last:border-0">
                     <div className={`w-9 h-9 rounded-lg ${style.iconClass} flex items-center justify-center shrink-0`}>
@@ -246,9 +259,9 @@ export default function Dashboard() {
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-xs text-muted-foreground">{formatDate(video.data_postagem)}</p>
-                      <span className={`inline-block text-[10px] font-semibold mt-1 px-2 py-0.5 rounded-full ${video.status === "postado" ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"
+                      <span className={`inline-block text-[10px] font-semibold mt-1 px-2 py-0.5 rounded-full ${colName.toLowerCase() === "postado" ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"
                         }`}>
-                        {STATUS_LABELS[video.status as VideoStatus]}
+                        {colName}
                       </span>
                     </div>
                   </div>
@@ -263,31 +276,33 @@ export default function Dashboard() {
           className="bg-card border border-border/50 rounded-xl p-4 sm:p-6">
           <h2 className="text-lg font-bold text-foreground mb-5">Progresso do Pipeline</h2>
           <div className="space-y-4">
-            {(Object.keys(STATUS_LABELS) as VideoStatus[]).map((status, i) => {
-              const pct = totalVideos > 0 ? (statusCounts[status] / totalVideos) * 100 : 0;
+            {columns.map((col, i) => {
+              const count = columnCounts[col.id] || 0;
+              const pct = totalVideos > 0 ? (count / totalVideos) * 100 : 0;
               const colors = ["bg-cyan-400", "bg-blue-400", "bg-emerald-400", "bg-amber-400", "bg-purple-400"];
               const iconColors = ["text-cyan-400", "text-blue-400", "text-emerald-400", "text-amber-400", "text-purple-400"];
               const bgColors = ["bg-cyan-400/15", "bg-blue-400/15", "bg-emerald-400/15", "bg-amber-400/15", "bg-purple-400/15"];
-              const icons = [FileText, FileText, Video, Upload, CheckCircle];
-              const Icon = icons[i];
+              const cIdx = i % colors.length;
+              const Icon = FileText;
+
               return (
-                <div key={status} className="space-y-2">
+                <div key={col.id} className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg ${bgColors[i]} flex items-center justify-center`}>
-                        <Icon className={`w-4 h-4 ${iconColors[i]}`} />
+                      <div className={`w-8 h-8 rounded-lg ${bgColors[cIdx]} flex items-center justify-center`}>
+                        <Icon className={`w-4 h-4 ${iconColors[cIdx]}`} />
                       </div>
-                      <span className="font-medium text-foreground">{STATUS_LABELS[status]}</span>
+                      <span className="font-medium text-foreground">{col.title}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-foreground">{statusCounts[status]}</span>
+                      <span className="text-sm font-bold text-foreground">{count}</span>
                       <span className="text-xs text-muted-foreground">({Math.round(pct)}%)</span>
                     </div>
                   </div>
                   <div className="h-2 bg-secondary/50 rounded-full overflow-hidden">
                     <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }}
                       transition={{ duration: 0.8, delay: 0.3 + i * 0.1 }}
-                      className={`h-full rounded-full ${colors[i]}`}
+                      className={`h-full rounded-full ${colors[cIdx]}`}
                     />
                   </div>
                 </div>
