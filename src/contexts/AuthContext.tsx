@@ -206,12 +206,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error("AuthContext: signOut error", err);
     } finally {
-      // Always clear state, even if Supabase call fails
+      // Aggressively clear all storage
+      localStorage.clear();
+      sessionStorage.clear();
+
+      // Clear state
       clearState(setSession, setUser, setProfile, setOwnerId, setPermissions, setIsOwner);
       setLoading(false);
-      // Force redirect to auth and clear any stored state if necessary
-      localStorage.removeItem('sb-bgoqjcmfweuuwdaipvzv-auth-token'); // Clear Supabase token if known key, or just rely on signOut
-      window.location.replace('/auth'); // Use replace to prevent back navigation
+
+      // Force Hard Reload to clear memory state
+      window.location.href = '/auth';
     }
   }, []);
 
