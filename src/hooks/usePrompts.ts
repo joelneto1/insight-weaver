@@ -7,17 +7,25 @@ import type { Tables } from "@/integrations/supabase/types";
 export type Prompt = Tables<"prompts">;
 export type PromptInsert = Omit<Prompt, "id" | "created_at" | "updated_at" | "user_id">;
 
+// Simple in-memory cache
+const cache: { ownerId: string | null; data: Prompt[] | null } = { ownerId: null, data: null };
+
 export function usePrompts() {
     const { user, ownerId } = useAuth();
     const { toast } = useToast();
     const toastRef = useRef(toast);
     toastRef.current = toast;
 
-    const [prompts, setPrompts] = useState<Prompt[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [prompts, setPrompts] = useState<Prompt[]>(cache.ownerId === ownerId && cache.data ? cache.data : []);
+    const [loading, setLoading] = useState(!(cache.ownerId === ownerId && cache.data));
 
-    const fetch = useCallback(async () => {
+    const fetch = useCallback(async (force = false) => {
         if (!user || !ownerId) {
+            setLoading(false);
+            return;
+        }
+        if (!force && cache.ownerId === ownerId && cache.data) {
+            setPrompts(cache.data);
             setLoading(false);
             return;
         }
@@ -31,7 +39,10 @@ export function usePrompts() {
             if (error) {
                 toastRef.current({ title: "Erro ao carregar prompts", description: error.message, variant: "destructive" });
             } else {
-                setPrompts(data || []);
+                const result = data || [];
+                cache.ownerId = ownerId;
+                cache.data = result;
+                setPrompts(result);
             }
         } catch (err) {
             console.error("usePrompts fetch error:", err);
@@ -54,7 +65,7 @@ export function usePrompts() {
             return null;
         }
         toastRef.current({ title: "Prompt criado!" });
-        await fetch();
+        await fetch(true);
         return data;
     };
 
@@ -69,7 +80,7 @@ export function usePrompts() {
             toastRef.current({ title: "Erro ao atualizar prompt", description: error.message, variant: "destructive" });
             return false;
         }
-        await fetch();
+        await fetch(true);
         return true;
     };
 
@@ -85,7 +96,7 @@ export function usePrompts() {
             return false;
         }
         toastRef.current({ title: "Prompt excluído!" });
-        await fetch();
+        await fetch(true);
         return true;
     };
 

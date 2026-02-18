@@ -50,6 +50,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Use ref to track if we're signing out to prevent race conditions
   const isSigningOut = useRef(false);
+  // Track if initial auth has been processed to avoid double processing
+  const initialAuthDone = useRef(false);
 
   const clearAllState = useCallback(() => {
     setSession(null);
@@ -66,34 +68,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (isSigningOut.current) return;
 
     try {
-      // 1. Fetch Profile
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("user_id", userId)
-        .maybeSingle();
+      // 1. Fetch Profile AND Team membership in PARALLEL for speed
+      const [profileResult, teamByIdResult] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("*")
+          .eq("user_id", userId)
+          .maybeSingle(),
+        supabase
+          .from("team_members")
+          .select("id, owner_id, permissions, member_id")
+          .eq("member_id", userId)
+          .maybeSingle()
+      ]);
 
-      if (profileError) {
-        console.error("AuthContext: Profile fetch error:", profileError);
+      if (isSigningOut.current) return;
+
+      // Handle profile
+      if (profileResult.error) {
+        console.error("AuthContext: Profile fetch error:", profileResult.error);
       }
-      if (!isSigningOut.current) {
-        setProfile(profileData ?? null);
+      setProfile(profileResult.data ?? null);
+
+      // Handle team membership
+      let teamData = teamByIdResult.data;
+      if (teamByIdResult.error) {
+        console.warn("AuthContext: Team fetch by ID warning:", teamByIdResult.error.message);
       }
-
-      // 2. Check Team Membership - is this user a MEMBER of someone's team?
-      let teamData: { id: string; owner_id: string; permissions: unknown; member_id: string | null } | null = null;
-
-      // First try by member_id
-      const { data: byId, error: teamError } = await supabase
-        .from("team_members")
-        .select("id, owner_id, permissions, member_id")
-        .eq("member_id", userId)
-        .maybeSingle();
-
-      if (teamError) {
-        console.warn("AuthContext: Team fetch by ID warning:", teamError.message);
-      }
-      teamData = byId;
 
       // If not found by ID and we have email, try by email
       if (!teamData && email) {
@@ -108,12 +109,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         teamData = byEmail;
 
-        // Auto-link member_id if found by email
+        // Auto-link member_id if found by email (fire and forget)
         if (teamData && !teamData.member_id) {
-          await supabase
+          supabase
             .from("team_members")
             .update({ member_id: userId })
-            .eq("id", teamData.id);
+            .eq("id", teamData.id)
+            .then(() => { });
         }
       }
 
@@ -121,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (teamData && teamData.owner_id !== userId) {
         // This user IS a team member (not the owner)
+        // Set ownerId IMMEDIATELY so hooks can start fetching
         setOwnerId(teamData.owner_id);
         const perms = typeof teamData.permissions === 'object' && teamData.permissions !== null
           ? teamData.permissions as Record<string, boolean>
@@ -129,17 +132,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsOwner(false);
         console.log("AuthContext: User is team member, owner:", teamData.owner_id);
 
-        // 3. Fetch the owner's profile to get their name
-        const { data: ownerProfile } = await supabase
+        // Fetch the owner's name in background (non-blocking)
+        supabase
           .from("profiles")
           .select("display_name")
           .eq("user_id", teamData.owner_id)
-          .maybeSingle();
-
-        if (!isSigningOut.current) {
-          setOwnerName(ownerProfile?.display_name || null);
-          console.log("AuthContext: Owner name:", ownerProfile?.display_name);
-        }
+          .maybeSingle()
+          .then(({ data: ownerProfile }) => {
+            if (!isSigningOut.current) {
+              setOwnerName(ownerProfile?.display_name || null);
+            }
+          });
       } else {
         // User is their own owner (either no team entry, or they ARE the owner)
         setOwnerId(userId);
@@ -179,6 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (currentSession?.user) {
           setSession(currentSession);
           setUser(currentSession.user);
+          // CRITICAL: await this so ownerId is set BEFORE loading becomes false
           await fetchProfileAndTeam(currentSession.user.id, currentSession.user.email);
         } else {
           clearAllState();
@@ -187,6 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error("AuthContext: Initial session fetch error:", error);
       } finally {
         if (mounted) {
+          initialAuthDone.current = true;
           setLoading(false);
         }
       }
@@ -198,29 +203,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
         if (!mounted) return;
+
+        // Skip INITIAL_SESSION since initializeAuth handles it
+        if (event === 'INITIAL_SESSION') return;
+
         console.log("AuthContext: onAuthStateChange event:", event);
 
         if (event === 'SIGNED_OUT') {
           clearAllState();
           setLoading(false);
-        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-          if (currentSession?.user) {
+        } else if (event === 'SIGNED_IN') {
+          // Only process if initializeAuth already ran (avoids double-fetch)
+          if (initialAuthDone.current && currentSession?.user) {
             setSession(currentSession);
             setUser(currentSession.user);
             await fetchProfileAndTeam(currentSession.user.id, currentSession.user.email);
+            setLoading(false);
           }
-          setLoading(false);
+        } else if (event === 'TOKEN_REFRESHED') {
+          // Only update session/user, no need to re-fetch all profile data
+          if (currentSession?.user) {
+            setSession(currentSession);
+            setUser(currentSession.user);
+          }
         }
-        // Ignore INITIAL_SESSION since initializeAuth already handles it
       }
     );
 
-    // Safety timeout — force loading=false after 4s
+    // Safety timeout — force loading=false after 6s
     const safetyTimer = setTimeout(() => {
-      if (mounted) {
+      if (mounted && loading) {
+        console.warn("AuthContext: Safety timeout reached, forcing loading=false");
         setLoading(false);
       }
-    }, 4000);
+    }, 6000);
 
     return () => {
       mounted = false;
@@ -245,7 +261,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.warn("AuthContext: Error clearing storage:", e);
     }
 
-    // 3. Sign out from Supabase (global scope to invalidate all sessions)
+    // 3. Sign out from Supabase
     try {
       await supabase.auth.signOut({ scope: 'local' });
     } catch (err) {

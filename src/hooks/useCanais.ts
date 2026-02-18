@@ -7,19 +7,26 @@ import type { Tables } from "@/integrations/supabase/types";
 export type Canal = Tables<"canais">;
 export type CanalInsert = Omit<Canal, "id" | "created_at" | "updated_at" | "user_id">;
 
+// Simple in-memory cache to avoid re-fetching on every page navigation
+const cache: { ownerId: string | null; data: Canal[] | null } = { ownerId: null, data: null };
+
 export function useCanais() {
     const { user, ownerId } = useAuth();
     const { toast } = useToast();
     const toastRef = useRef(toast);
     toastRef.current = toast;
 
-    const [canais, setCanais] = useState<Canal[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [canais, setCanais] = useState<Canal[]>(cache.ownerId === ownerId && cache.data ? cache.data : []);
+    const [loading, setLoading] = useState(!(cache.ownerId === ownerId && cache.data));
 
-    const fetch = useCallback(async () => {
-        console.log("useCanais: fetch called, user:", user?.id, "ownerId:", ownerId);
+    const fetch = useCallback(async (force = false) => {
         if (!user || !ownerId) {
-            console.warn("useCanais: skipping fetch - user or ownerId is null", { user: !!user, ownerId });
+            setLoading(false);
+            return;
+        }
+        // Skip fetch if cache is valid and not forced
+        if (!force && cache.ownerId === ownerId && cache.data) {
+            setCanais(cache.data);
             setLoading(false);
             return;
         }
@@ -30,11 +37,13 @@ export function useCanais() {
                 .select("*")
                 .eq("user_id", ownerId)
                 .order("created_at", { ascending: true });
-            console.log("useCanais: query result", { count: data?.length, error: error?.message });
             if (error) {
                 toastRef.current({ title: "Erro ao carregar canais", description: error.message, variant: "destructive" });
             } else {
-                setCanais(data || []);
+                const result = data || [];
+                cache.ownerId = ownerId;
+                cache.data = result;
+                setCanais(result);
             }
         } catch (err) {
             console.error("useCanais fetch error:", err);
@@ -57,7 +66,7 @@ export function useCanais() {
             return null;
         }
         toastRef.current({ title: "Canal criado!" });
-        await fetch();
+        await fetch(true);
         return data;
     };
 
@@ -73,7 +82,7 @@ export function useCanais() {
             return false;
         }
         toastRef.current({ title: "Canal atualizado!" });
-        await fetch();
+        await fetch(true);
         return true;
     };
 
@@ -89,7 +98,7 @@ export function useCanais() {
             return false;
         }
         toastRef.current({ title: "Canal excluído!" });
-        await fetch();
+        await fetch(true);
         return true;
     };
 

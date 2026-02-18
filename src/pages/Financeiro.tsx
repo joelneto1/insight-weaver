@@ -103,16 +103,6 @@ const todayFormatted = () => {
 
 export default function Financeiro() {
     const { user, ownerId, permissions, isOwner } = useAuth();
-
-    if (!isOwner && !permissions.financeiro) {
-        return (
-            <div className="flex flex-col items-center justify-center h-[calc(100vh-100px)] text-muted-foreground">
-                <Wallet className="w-12 h-12 mb-4 opacity-20" />
-                <h2 className="text-xl font-semibold">Acesso Restrito</h2>
-                <p>Você não tem permissão para acessar o módulo financeiro.</p>
-            </div>
-        );
-    }
     const { toast } = useToast();
     const { canais } = useCanais();
     const [transacoes, setTransacoes] = useState<Transacao[]>([]);
@@ -133,14 +123,8 @@ export default function Financeiro() {
         if (form.tipo === "entrada" && form.categoria === "Adsense") {
             const usd = parseCurrency(form.valorUsd);
             const rate = parseCurrency(form.cotacao);
-            // Only auto-calculate if user is interacting with USD fields
-            // This simple check prevents overwriting if we just loaded an edit form and haven't touched USD values
-            // But actually, for edit mode, we want the existing BRL value unless they change USD.
-            // Since 'form' updates on load, this might trigger.
-            // However, the calculation is deteministic: BRL = USD * Rate. If data is consistent, it's fine.
             if (usd > 0 && rate > 0) {
                 const brl = usd * rate;
-                // Check difference to avoid infinite loop or unnecessary updates
                 const currentBrl = parseCurrency(form.valor);
                 if (Math.abs(brl - currentBrl) > 0.01) {
                     setForm(prev => ({
@@ -170,6 +154,17 @@ export default function Financeiro() {
         }
         setLoading(false);
     };
+
+    // Permission check AFTER all hooks (React rules)
+    if (!isOwner && !permissions.financeiro) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[calc(100vh-100px)] text-muted-foreground">
+                <Wallet className="w-12 h-12 mb-4 opacity-20" />
+                <h2 className="text-xl font-semibold">Acesso Restrito</h2>
+                <p>Você não tem permissão para acessar o módulo financeiro.</p>
+            </div>
+        );
+    }
 
     const handleOpenNew = () => {
         setEditingId(null);

@@ -7,19 +7,25 @@ import type { Tables } from "@/integrations/supabase/types";
 export type KanbanColumn = Tables<"kanban_columns">;
 export type KanbanColumnInsert = Omit<KanbanColumn, "id" | "user_id" | "created_at">;
 
+// Simple in-memory cache
+const cache: { ownerId: string | null; data: KanbanColumn[] | null } = { ownerId: null, data: null };
+
 export function useKanbanColumns() {
     const { user, ownerId } = useAuth();
     const { toast } = useToast();
     const toastRef = useRef(toast);
     toastRef.current = toast;
 
-    const [columns, setColumns] = useState<KanbanColumn[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [columns, setColumns] = useState<KanbanColumn[]>(cache.ownerId === ownerId && cache.data ? cache.data : []);
+    const [loading, setLoading] = useState(!(cache.ownerId === ownerId && cache.data));
 
-    const fetchColumns = useCallback(async () => {
-        console.log("useKanbanColumns: fetch called, user:", user?.id, "ownerId:", ownerId);
+    const fetchColumns = useCallback(async (force = false) => {
         if (!user || !ownerId) {
-            console.warn("useKanbanColumns: skipping fetch - user or ownerId is null", { user: !!user, ownerId });
+            setLoading(false);
+            return;
+        }
+        if (!force && cache.ownerId === ownerId && cache.data) {
+            setColumns(cache.data);
             setLoading(false);
             return;
         }
@@ -30,11 +36,13 @@ export function useKanbanColumns() {
                 .select("*")
                 .eq("user_id", ownerId)
                 .order("position", { ascending: true });
-            console.log("useKanbanColumns: query result", { count: data?.length, error: error?.message });
             if (error) {
                 toastRef.current({ title: "Erro ao carregar colunas", description: error.message, variant: "destructive" });
             } else {
-                setColumns(data || []);
+                const result = data || [];
+                cache.ownerId = ownerId;
+                cache.data = result;
+                setColumns(result);
             }
         } catch (err) {
             console.error("useKanbanColumns fetch error:", err);
@@ -63,7 +71,7 @@ export function useKanbanColumns() {
         }
 
         toastRef.current({ title: "Coluna criada!" });
-        await fetchColumns();
+        await fetchColumns(true);
         return data;
     };
 
@@ -80,7 +88,7 @@ export function useKanbanColumns() {
             return false;
         }
 
-        await fetchColumns();
+        await fetchColumns(true);
         return true;
     };
 
@@ -99,7 +107,7 @@ export function useKanbanColumns() {
         }
 
         toastRef.current({ title: "Coluna excluída!" });
-        await fetchColumns();
+        await fetchColumns(true);
         return true;
     };
 
@@ -119,7 +127,7 @@ export function useKanbanColumns() {
         } catch (e) {
             console.error("Error reordering columns", e);
             toastRef.current({ title: "Erro ao salvar ordem das colunas", variant: "destructive" });
-            fetchColumns();
+            fetchColumns(true);
         }
     };
 

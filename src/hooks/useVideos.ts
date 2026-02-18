@@ -7,19 +7,25 @@ import type { Tables } from "@/integrations/supabase/types";
 export type Video = Tables<"videos"> & { position: number };
 export type VideoInsert = Omit<Video, "id" | "created_at" | "updated_at" | "user_id">;
 
+// Simple in-memory cache
+const cache: { ownerId: string | null; data: Video[] | null } = { ownerId: null, data: null };
+
 export function useVideos() {
     const { user, ownerId } = useAuth();
     const { toast } = useToast();
     const toastRef = useRef(toast);
     toastRef.current = toast;
 
-    const [videos, setVideos] = useState<Video[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [videos, setVideos] = useState<Video[]>(cache.ownerId === ownerId && cache.data ? cache.data : []);
+    const [loading, setLoading] = useState(!(cache.ownerId === ownerId && cache.data));
 
-    const fetch = useCallback(async () => {
-        console.log("useVideos: fetch called, user:", user?.id, "ownerId:", ownerId);
+    const fetch = useCallback(async (force = false) => {
         if (!user || !ownerId) {
-            console.warn("useVideos: skipping fetch - user or ownerId is null", { user: !!user, ownerId });
+            setLoading(false);
+            return;
+        }
+        if (!force && cache.ownerId === ownerId && cache.data) {
+            setVideos(cache.data);
             setLoading(false);
             return;
         }
@@ -31,11 +37,13 @@ export function useVideos() {
                 .eq("user_id", ownerId)
                 .order("column_id", { ascending: true })
                 .order("position", { ascending: true });
-            console.log("useVideos: query result", { count: data?.length, error: error?.message });
             if (error) {
                 toastRef.current({ title: "Erro ao carregar vídeos", description: error.message, variant: "destructive" });
             } else {
-                setVideos((data as Video[]) || []);
+                const result = (data as Video[]) || [];
+                cache.ownerId = ownerId;
+                cache.data = result;
+                setVideos(result);
             }
         } catch (err) {
             console.error("useVideos fetch error:", err);
@@ -62,7 +70,7 @@ export function useVideos() {
             return null;
         }
         toastRef.current({ title: "Vídeo criado!", description: "O vídeo foi adicionado à coluna selecionada." });
-        await fetch();
+        await fetch(true);
         return data as Video;
     };
 
@@ -79,7 +87,7 @@ export function useVideos() {
             toastRef.current({ title: "Erro ao atualizar vídeo", description: error.message, variant: "destructive" });
             return false;
         }
-        await fetch();
+        await fetch(true);
         return true;
     };
 
@@ -95,7 +103,7 @@ export function useVideos() {
             return false;
         }
         toastRef.current({ title: "Vídeo excluído!" });
-        await fetch();
+        await fetch(true);
         return true;
     };
 
@@ -110,12 +118,12 @@ export function useVideos() {
                     .eq("id", u.id)
                     .eq("user_id", ownerId)
             ));
-            await fetch();
+            await fetch(true);
             return true;
         } catch (error) {
             console.error("Bulk update failed:", error);
             toastRef.current({ title: "Erro ao atualizar ordem", variant: "destructive" });
-            await fetch();
+            await fetch(true);
             return false;
         } finally {
             setLoading(false);
