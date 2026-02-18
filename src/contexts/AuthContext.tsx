@@ -111,13 +111,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setPermissions(perms);
         setIsOwner(false);
       } else {
+        // Fallback: User is their own owner
+        console.log("AuthContext: No team found, defaulting to self as owner");
         setOwnerId(userId);
         setPermissions({});
         setIsOwner(true);
       }
     } catch (err) {
       console.error("AuthContext: Unexpected error in fetchProfileAndTeam:", err);
+      // Fallback on error
       setOwnerId(userId);
+      setPermissions({});
       setIsOwner(true);
     }
   }, []);
@@ -205,8 +209,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Always clear state, even if Supabase call fails
       clearState(setSession, setUser, setProfile, setOwnerId, setPermissions, setIsOwner);
       setLoading(false);
-      // Force redirect to auth
-      window.location.href = '/auth';
+      // Force redirect to auth and clear any stored state if necessary
+      localStorage.removeItem('sb-bgoqjcmfweuuwdaipvzv-auth-token'); // Clear Supabase token if known key, or just rely on signOut
+      window.location.replace('/auth'); // Use replace to prevent back navigation
     }
   }, []);
 
