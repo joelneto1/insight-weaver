@@ -247,7 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // 3. Sign out from Supabase (global scope to invalidate all sessions)
     try {
-      await supabase.auth.signOut({ scope: 'global' });
+      await supabase.auth.signOut({ scope: 'local' });
     } catch (err) {
       console.error("AuthContext: signOut error (continuing anyway)", err);
     }
