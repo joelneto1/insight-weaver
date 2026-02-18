@@ -8,18 +8,18 @@ export type Prompt = Tables<"prompts">;
 export type PromptInsert = Omit<Prompt, "id" | "created_at" | "updated_at" | "user_id">;
 
 export function usePrompts() {
-    const { user } = useAuth();
+    const { user, ownerId } = useAuth();
     const { toast } = useToast();
     const [prompts, setPrompts] = useState<Prompt[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetch = useCallback(async () => {
-        if (!user) return;
+        if (!user || !ownerId) return;
         setLoading(true);
         const { data, error } = await supabase
             .from("prompts")
             .select("*")
-            .eq("user_id", user.id)
+            .eq("user_id", ownerId)
             .order("created_at", { ascending: false });
         if (error) {
             toast({ title: "Erro ao carregar prompts", description: error.message, variant: "destructive" });
@@ -27,15 +27,15 @@ export function usePrompts() {
             setPrompts(data || []);
         }
         setLoading(false);
-    }, [user]);
+    }, [user, ownerId]);
 
     useEffect(() => { fetch(); }, [fetch]);
 
     const create = async (prompt: PromptInsert) => {
-        if (!user) return null;
+        if (!user || !ownerId) return null;
         const { data, error } = await supabase
             .from("prompts")
-            .insert({ ...prompt, user_id: user.id })
+            .insert({ ...prompt, user_id: ownerId })
             .select()
             .single();
         if (error) {
@@ -48,12 +48,12 @@ export function usePrompts() {
     };
 
     const update = async (id: string, prompt: Partial<PromptInsert>) => {
-        if (!user) return false;
+        if (!user || !ownerId) return false;
         const { error } = await supabase
             .from("prompts")
             .update(prompt)
             .eq("id", id)
-            .eq("user_id", user.id);
+            .eq("user_id", ownerId);
         if (error) {
             toast({ title: "Erro ao atualizar prompt", description: error.message, variant: "destructive" });
             return false;
@@ -68,7 +68,7 @@ export function usePrompts() {
             .from("prompts")
             .delete()
             .eq("id", id)
-            .eq("user_id", user.id);
+            .eq("user_id", ownerId);;
         if (error) {
             toast({ title: "Erro ao excluir prompt", description: error.message, variant: "destructive" });
             return false;

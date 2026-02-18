@@ -38,7 +38,7 @@ const EMPTY_FORM = {
 };
 
 export default function Contas() {
-    const { user } = useAuth();
+    const { user, ownerId, permissions, isOwner } = useAuth();
     const { toast } = useToast();
     const [contas, setContas] = useState<Conta[]>([]);
     const [loading, setLoading] = useState(true);
@@ -51,19 +51,30 @@ export default function Contas() {
     const [copiedField, setCopiedField] = useState<string | null>(null);
     const { copyToClipboard } = useCopy();
 
+    // Check permissions
+    if (!isOwner && !permissions.contas) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[calc(100vh-100px)] text-muted-foreground">
+                <Lock className="w-12 h-12 mb-4 opacity-20" />
+                <h2 className="text-xl font-semibold">Acesso Restrito</h2>
+                <p>Você não tem permissão para acessar o gerenciamento de contas.</p>
+            </div>
+        );
+    }
+
     // Fetch contas
     useEffect(() => {
-        if (!user) return;
+        if (!user || !ownerId) return;
         fetchContas();
-    }, [user]);
+    }, [user, ownerId]);
 
     const fetchContas = async () => {
-        if (!user) return;
+        if (!user || !ownerId) return;
         setLoading(true);
         const { data, error } = await supabase
             .from("contas")
             .select("*")
-            .eq("user_id", user.id)
+            .eq("user_id", ownerId)
             .order("created_at", { ascending: false });
 
         if (error) {
@@ -73,7 +84,7 @@ export default function Contas() {
                 data.map(async (conta) => ({
                     ...conta,
                     senha_email: conta.senha_email
-                        ? await decryptText(conta.senha_email, user.id)
+                        ? await decryptText(conta.senha_email, ownerId)
                         : null,
                 }))
             );
@@ -121,12 +132,12 @@ export default function Contas() {
             return;
         }
 
-        if (!user) return;
+        if (!user || !ownerId) return;
 
         setSaving(true);
 
         const encryptedSenha = form.senha_email
-            ? await encryptText(form.senha_email, user.id)
+            ? await encryptText(form.senha_email, ownerId)
             : null;
 
         if (editingId) {
@@ -143,7 +154,7 @@ export default function Contas() {
                     anotacoes: form.anotacoes || null,
                 })
                 .eq("id", editingId)
-                .eq("user_id", user.id);
+                .eq("user_id", ownerId);
 
             if (error) {
                 toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" });
@@ -157,7 +168,7 @@ export default function Contas() {
             const { error } = await supabase
                 .from("contas")
                 .insert({
-                    user_id: user.id,
+                    user_id: ownerId,
                     nick: form.nick,
                     email: form.email,
                     senha_email: encryptedSenha,
@@ -179,8 +190,8 @@ export default function Contas() {
     };
 
     const handleDelete = async () => {
-        if (!deleteId || !user) return;
-        const { error } = await supabase.from("contas").delete().eq("id", deleteId).eq("user_id", user.id);
+        if (!deleteId || !user || !ownerId) return;
+        const { error } = await supabase.from("contas").delete().eq("id", deleteId).eq("user_id", ownerId);
         if (error) {
             toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
         } else {

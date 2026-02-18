@@ -8,18 +8,18 @@ export type Canal = Tables<"canais">;
 export type CanalInsert = Omit<Canal, "id" | "created_at" | "updated_at" | "user_id">;
 
 export function useCanais() {
-    const { user } = useAuth();
+    const { user, ownerId } = useAuth();
     const { toast } = useToast();
     const [canais, setCanais] = useState<Canal[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetch = useCallback(async () => {
-        if (!user) return;
+        if (!user || !ownerId) return;
         setLoading(true);
         const { data, error } = await supabase
             .from("canais")
             .select("*")
-            .eq("user_id", user.id)
+            .eq("user_id", ownerId)
             .order("created_at", { ascending: true });
         if (error) {
             toast({ title: "Erro ao carregar canais", description: error.message, variant: "destructive" });
@@ -27,15 +27,15 @@ export function useCanais() {
             setCanais(data || []);
         }
         setLoading(false);
-    }, [user, toast]);
+    }, [user, ownerId, toast]);
 
     useEffect(() => { fetch(); }, [fetch]);
 
     const create = async (canal: CanalInsert) => {
-        if (!user) return null;
+        if (!user || !ownerId) return null;
         const { data, error } = await supabase
             .from("canais")
-            .insert({ ...canal, user_id: user.id })
+            .insert({ ...canal, user_id: ownerId })
             .select()
             .single();
         if (error) {
@@ -48,12 +48,12 @@ export function useCanais() {
     };
 
     const update = async (id: string, canal: Partial<CanalInsert>) => {
-        if (!user) return false;
+        if (!user || !ownerId) return false;
         const { error } = await supabase
             .from("canais")
             .update(canal)
             .eq("id", id)
-            .eq("user_id", user.id);
+            .eq("user_id", ownerId);
         if (error) {
             toast({ title: "Erro ao atualizar canal", description: error.message, variant: "destructive" });
             return false;
@@ -69,7 +69,7 @@ export function useCanais() {
             .from("canais")
             .delete()
             .eq("id", id)
-            .eq("user_id", user.id);
+            .eq("user_id", ownerId);
         if (error) {
             toast({ title: "Erro ao excluir canal", description: error.message, variant: "destructive" });
             return false;

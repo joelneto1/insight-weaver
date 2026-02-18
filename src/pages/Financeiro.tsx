@@ -102,7 +102,17 @@ const todayFormatted = () => {
 };
 
 export default function Financeiro() {
-    const { user } = useAuth();
+    const { user, ownerId, permissions, isOwner } = useAuth();
+
+    if (!isOwner && !permissions.financeiro) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[calc(100vh-100px)] text-muted-foreground">
+                <Wallet className="w-12 h-12 mb-4 opacity-20" />
+                <h2 className="text-xl font-semibold">Acesso Restrito</h2>
+                <p>Você não tem permissão para acessar o módulo financeiro.</p>
+            </div>
+        );
+    }
     const { toast } = useToast();
     const { canais } = useCanais();
     const [transacoes, setTransacoes] = useState<Transacao[]>([]);
@@ -114,8 +124,8 @@ export default function Financeiro() {
     const [editingId, setEditingId] = useState<string | null>(null);
 
     useEffect(() => {
-        if (user) fetchTransacoes();
-    }, [user]);
+        if (user || ownerId) fetchTransacoes();
+    }, [user, ownerId]);
 
     // Auto-calculate BRL when USD or Rate changes
     useEffect(() => {
@@ -142,12 +152,12 @@ export default function Financeiro() {
     }, [form.valorUsd, form.cotacao, form.tipo, form.categoria]);
 
     const fetchTransacoes = async () => {
-        if (!user) return;
+        if (!user || !ownerId) return;
         setLoading(true);
         const { data, error } = await supabase
             .from("financeiro")
             .select("*")
-            .eq("user_id", user.id)
+            .eq("user_id", ownerId)
             .order("data", { ascending: false });
         if (error) {
             toast({ title: "Erro ao carregar dados", description: error.message, variant: "destructive" });
@@ -180,7 +190,7 @@ export default function Financeiro() {
     };
 
     const handleSave = async () => {
-        if (!form.categoria || !form.valor || !user) return;
+        if (!form.categoria || !form.valor || !user || !ownerId) return;
         if (form.tipo === "entrada" && !form.canal_nome) {
             toast({ title: "Selecione o canal", description: "Entradas precisam estar vinculadas a um canal.", variant: "destructive" });
             return;
@@ -192,7 +202,7 @@ export default function Financeiro() {
         const cotacaoNumber = form.categoria === "Adsense" ? parseCurrency(form.cotacao) : null;
 
         const payload = {
-            user_id: user.id,
+            user_id: ownerId,
             tipo: form.tipo,
             categoria: form.categoria,
             valor: valorNumber,
@@ -206,7 +216,7 @@ export default function Financeiro() {
 
         let error;
         if (editingId) {
-            const { error: updateError } = await supabase.from("financeiro").update(payload).eq("id", editingId).eq("user_id", user.id);
+            const { error: updateError } = await supabase.from("financeiro").update(payload).eq("id", editingId).eq("user_id", ownerId);
             error = updateError;
         } else {
             const { error: insertError } = await supabase.from("financeiro").insert(payload);
@@ -226,8 +236,8 @@ export default function Financeiro() {
     };
 
     const handleDelete = async () => {
-        if (!deleteId || !user) return;
-        const { error } = await supabase.from("financeiro").delete().eq("id", deleteId).eq("user_id", user.id);
+        if (!deleteId || !user || !ownerId) return;
+        const { error } = await supabase.from("financeiro").delete().eq("id", deleteId).eq("user_id", ownerId);
         if (error) {
             toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
         } else {

@@ -8,18 +8,18 @@ export type KanbanColumn = Tables<"kanban_columns">;
 export type KanbanColumnInsert = Omit<KanbanColumn, "id" | "user_id" | "created_at">;
 
 export function useKanbanColumns() {
-    const { user } = useAuth();
+    const { user, ownerId } = useAuth();
     const { toast } = useToast();
     const [columns, setColumns] = useState<KanbanColumn[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetchColumns = useCallback(async () => {
-        if (!user) return;
+        if (!user || !ownerId) return;
         setLoading(true);
         const { data, error } = await supabase
             .from("kanban_columns")
             .select("*")
-            .eq("user_id", user.id)
+            .eq("user_id", ownerId)
             .order("position", { ascending: true });
 
         if (error) {
@@ -28,19 +28,19 @@ export function useKanbanColumns() {
             setColumns(data || []);
         }
         setLoading(false);
-    }, [user, toast]);
+    }, [user, ownerId, toast]);
 
     useEffect(() => {
         fetchColumns();
     }, [fetchColumns]);
 
     const addColumn = async (title: string) => {
-        if (!user) return null;
+        if (!user || !ownerId) return null;
         const newPosition = columns.length > 0 ? Math.max(...columns.map(c => c.position)) + 1 : 0;
 
         const { data, error } = await supabase
             .from("kanban_columns")
-            .insert({ user_id: user.id, title, position: newPosition })
+            .insert({ user_id: ownerId, title, position: newPosition })
             .select()
             .single();
 
@@ -55,12 +55,12 @@ export function useKanbanColumns() {
     };
 
     const updateColumn = async (id: string, updates: Partial<KanbanColumnInsert>) => {
-        if (!user) return false;
+        if (!user || !ownerId) return false;
         const { error } = await supabase
             .from("kanban_columns")
             .update(updates)
             .eq("id", id)
-            .eq("user_id", user.id);
+            .eq("user_id", ownerId);
 
         if (error) {
             toast({ title: "Erro ao atualizar coluna", description: error.message, variant: "destructive" });
@@ -72,7 +72,7 @@ export function useKanbanColumns() {
     };
 
     const deleteColumn = async (id: string) => {
-        if (!user) return false;
+        if (!user || !ownerId) return false;
 
         // Verificar se tem vídeos? A FK tem ON DELETE SET NULL, então os vídeos ficariam "sem pai".
         // Mas a lógica do frontend pode quebrar. Se quiser deletar e manter vídeos, devia mover antes.
@@ -84,7 +84,7 @@ export function useKanbanColumns() {
             .from("kanban_columns")
             .delete()
             .eq("id", id)
-            .eq("user_id", user.id);
+            .eq("user_id", ownerId);
 
         if (error) {
             toast({ title: "Erro ao excluir coluna", description: error.message, variant: "destructive" });
@@ -104,7 +104,7 @@ export function useKanbanColumns() {
         const updates = newOrder.map((col, index) => ({
             id: col.id,
             position: index,
-            user_id: user?.id
+            user_id: ownerId
         }));
 
         // Supabase doesn't have bulk update via JS client easily without RPC or loop.

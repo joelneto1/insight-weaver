@@ -10,8 +10,10 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+import { TeamManagement } from "@/components/TeamManagement";
+
 export default function Configuracoes() {
-  const { profile, user, refreshProfile } = useAuth();
+  const { profile, user, refreshProfile, isOwner } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const { toast } = useToast();
 
@@ -236,6 +238,12 @@ export default function Configuracoes() {
           <Button variant="outline" onClick={handleChangePassword}>Redefinir Senha</Button>
         </div>
       </div>
+
+      {isOwner && (
+        <div className="bg-card border border-border rounded-xl p-6 space-y-4">
+          <TeamManagement />
+        </div>
+      )}
     </div>
   );
 }
