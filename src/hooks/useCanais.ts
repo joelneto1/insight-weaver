@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -10,6 +10,9 @@ export type CanalInsert = Omit<Canal, "id" | "created_at" | "updated_at" | "user
 export function useCanais() {
     const { user, ownerId } = useAuth();
     const { toast } = useToast();
+    const toastRef = useRef(toast);
+    toastRef.current = toast;
+
     const [canais, setCanais] = useState<Canal[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -19,18 +22,23 @@ export function useCanais() {
             return;
         }
         setLoading(true);
-        const { data, error } = await supabase
-            .from("canais")
-            .select("*")
-            .eq("user_id", ownerId)
-            .order("created_at", { ascending: true });
-        if (error) {
-            toast({ title: "Erro ao carregar canais", description: error.message, variant: "destructive" });
-        } else {
-            setCanais(data || []);
+        try {
+            const { data, error } = await supabase
+                .from("canais")
+                .select("*")
+                .eq("user_id", ownerId)
+                .order("created_at", { ascending: true });
+            if (error) {
+                toastRef.current({ title: "Erro ao carregar canais", description: error.message, variant: "destructive" });
+            } else {
+                setCanais(data || []);
+            }
+        } catch (err) {
+            console.error("useCanais fetch error:", err);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
-    }, [user, ownerId, toast]);
+    }, [user, ownerId]);
 
     useEffect(() => { fetch(); }, [fetch]);
 
@@ -42,10 +50,10 @@ export function useCanais() {
             .select()
             .single();
         if (error) {
-            toast({ title: "Erro ao criar canal", description: error.message, variant: "destructive" });
+            toastRef.current({ title: "Erro ao criar canal", description: error.message, variant: "destructive" });
             return null;
         }
-        toast({ title: "Canal criado!" });
+        toastRef.current({ title: "Canal criado!" });
         await fetch();
         return data;
     };
@@ -58,10 +66,10 @@ export function useCanais() {
             .eq("id", id)
             .eq("user_id", ownerId);
         if (error) {
-            toast({ title: "Erro ao atualizar canal", description: error.message, variant: "destructive" });
+            toastRef.current({ title: "Erro ao atualizar canal", description: error.message, variant: "destructive" });
             return false;
         }
-        toast({ title: "Canal atualizado!" });
+        toastRef.current({ title: "Canal atualizado!" });
         await fetch();
         return true;
     };
@@ -74,10 +82,10 @@ export function useCanais() {
             .eq("id", id)
             .eq("user_id", ownerId);
         if (error) {
-            toast({ title: "Erro ao excluir canal", description: error.message, variant: "destructive" });
+            toastRef.current({ title: "Erro ao excluir canal", description: error.message, variant: "destructive" });
             return false;
         }
-        toast({ title: "Canal excluído!" });
+        toastRef.current({ title: "Canal excluído!" });
         await fetch();
         return true;
     };

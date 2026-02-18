@@ -124,7 +124,8 @@ export default function Financeiro() {
     const [editingId, setEditingId] = useState<string | null>(null);
 
     useEffect(() => {
-        if (user || ownerId) fetchTransacoes();
+        if (user && ownerId) fetchTransacoes();
+        else setLoading(false);
     }, [user, ownerId]);
 
     // Auto-calculate BRL when USD or Rate changes

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -10,6 +10,9 @@ export type PromptInsert = Omit<Prompt, "id" | "created_at" | "updated_at" | "us
 export function usePrompts() {
     const { user, ownerId } = useAuth();
     const { toast } = useToast();
+    const toastRef = useRef(toast);
+    toastRef.current = toast;
+
     const [prompts, setPrompts] = useState<Prompt[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -19,17 +22,22 @@ export function usePrompts() {
             return;
         }
         setLoading(true);
-        const { data, error } = await supabase
-            .from("prompts")
-            .select("*")
-            .eq("user_id", ownerId)
-            .order("created_at", { ascending: false });
-        if (error) {
-            toast({ title: "Erro ao carregar prompts", description: error.message, variant: "destructive" });
-        } else {
-            setPrompts(data || []);
+        try {
+            const { data, error } = await supabase
+                .from("prompts")
+                .select("*")
+                .eq("user_id", ownerId)
+                .order("created_at", { ascending: false });
+            if (error) {
+                toastRef.current({ title: "Erro ao carregar prompts", description: error.message, variant: "destructive" });
+            } else {
+                setPrompts(data || []);
+            }
+        } catch (err) {
+            console.error("usePrompts fetch error:", err);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     }, [user, ownerId]);
 
     useEffect(() => { fetch(); }, [fetch]);
@@ -42,10 +50,10 @@ export function usePrompts() {
             .select()
             .single();
         if (error) {
-            toast({ title: "Erro ao criar prompt", description: error.message, variant: "destructive" });
+            toastRef.current({ title: "Erro ao criar prompt", description: error.message, variant: "destructive" });
             return null;
         }
-        toast({ title: "Prompt criado!" });
+        toastRef.current({ title: "Prompt criado!" });
         await fetch();
         return data;
     };
@@ -58,7 +66,7 @@ export function usePrompts() {
             .eq("id", id)
             .eq("user_id", ownerId);
         if (error) {
-            toast({ title: "Erro ao atualizar prompt", description: error.message, variant: "destructive" });
+            toastRef.current({ title: "Erro ao atualizar prompt", description: error.message, variant: "destructive" });
             return false;
         }
         await fetch();
@@ -66,17 +74,17 @@ export function usePrompts() {
     };
 
     const remove = async (id: string) => {
-        if (!user) return false;
+        if (!user || !ownerId) return false;
         const { error } = await supabase
             .from("prompts")
             .delete()
             .eq("id", id)
-            .eq("user_id", ownerId);;
+            .eq("user_id", ownerId);
         if (error) {
-            toast({ title: "Erro ao excluir prompt", description: error.message, variant: "destructive" });
+            toastRef.current({ title: "Erro ao excluir prompt", description: error.message, variant: "destructive" });
             return false;
         }
-        toast({ title: "Prompt excluído!" });
+        toastRef.current({ title: "Prompt excluído!" });
         await fetch();
         return true;
     };
