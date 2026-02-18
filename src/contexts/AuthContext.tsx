@@ -126,54 +126,78 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // Subscription
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (!mounted) return;
-        try {
-          setSession(session);
-          setUser(session?.user ?? null);
-
-          if (session?.user) {
-            await fetchProfileAndTeam(session.user.id, session.user.email);
-          } else {
-            setProfile(null);
-            setOwnerId(null);
-            setPermissions({});
-            setIsOwner(true);
-          }
-        } catch (error) {
-          console.error("AuthContext: Auth state change error:", error);
-        } finally {
-          if (mounted) setLoading(false);
-        }
-      }
-    );
-
-    // Initial check
-    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
-      if (!mounted) return;
-      if (error) {
-        console.error("AuthContext: Get session error:", error);
-        setLoading(false);
-        return;
-      }
-
+    // Helper to safely fetch data
+    const initPayload = async (session: Session | null) => {
       try {
         setSession(session);
         setUser(session?.user ?? null);
+
         if (session?.user) {
           await fetchProfileAndTeam(session.user.id, session.user.email);
+        } else {
+          setProfile(null);
+          setOwnerId(null);
+          setPermissions({});
+          setIsOwner(true);
         }
+      } catch (err) {
+        console.error("AuthContext: Error in initPayload", err);
+      }
+    };
+
+    // 1. Initial Load Function
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error("AuthContext: getSession error", error);
+          throw error;
+        }
+        if (mounted) await initPayload(session);
       } catch (error) {
-        console.error("AuthContext: Initial load error:", error);
+        console.error("AuthContext: Initial session fetch error:", error);
       } finally {
         if (mounted) setLoading(false);
       }
-    });
+    };
+
+    // Start initialization
+    initializeAuth();
+
+    // 2. Auth State Listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!mounted) return;
+
+        // Always try to load payload on significant events
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+          await initPayload(session);
+        } else if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setOwnerId(null);
+          setPermissions({});
+          setIsOwner(true);
+        }
+
+        // Ensure loading is cleared on any auth event
+        setLoading(false);
+      }
+    );
+
+    // 3. Safety Timeout
+    // Force loading to false after 5 seconds to prevent infinite loops if something hangs
+    const timeoutId = setTimeout(() => {
+      if (mounted && loading) {
+        console.warn("AuthContext: Loading timed out, forcing completion");
+        setLoading(false);
+      }
+    }, 5000);
 
     return () => {
       mounted = false;
+      clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
   }, []);

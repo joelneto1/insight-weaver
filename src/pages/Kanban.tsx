@@ -26,12 +26,13 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 // --- Sortable Column Wrapper ---
-function SortableColumn({ column, children, onEditTitle, onDelete, onAddVideo }: {
+function SortableColumn({ column, children, onEditTitle, onDelete, onAddVideo, itemCount }: {
   column: KanbanColumn;
   children: React.ReactNode;
   onEditTitle: (newTitle: string) => void;
   onDelete: () => void;
   onAddVideo: () => void;
+  itemCount: number;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: column.id,
@@ -53,6 +54,7 @@ function SortableColumn({ column, children, onEditTitle, onDelete, onAddVideo }:
         onEditTitle={onEditTitle}
         onDelete={onDelete}
         onAddVideo={onAddVideo}
+        itemCount={itemCount}
       >
         {children}
       </DroppableColumn>
@@ -60,7 +62,7 @@ function SortableColumn({ column, children, onEditTitle, onDelete, onAddVideo }:
   );
 }
 
-function DroppableColumn({ id, title, children, attributes, listeners, onEditTitle, onDelete, onAddVideo }: {
+function DroppableColumn({ id, title, children, attributes, listeners, onEditTitle, onDelete, onAddVideo, itemCount }: {
   id: string;
   title: string;
   children: React.ReactNode;
@@ -69,6 +71,7 @@ function DroppableColumn({ id, title, children, attributes, listeners, onEditTit
   onEditTitle: (newTitle: string) => void;
   onDelete: () => void;
   onAddVideo: () => void;
+  itemCount: number;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   const [isEditing, setIsEditing] = useState(false);
@@ -119,7 +122,7 @@ function DroppableColumn({ id, title, children, attributes, listeners, onEditTit
               {title}
             </span>
             <span className="text-xs text-muted-foreground bg-secondary/80 px-1.5 py-0.5 rounded-full font-medium">
-              {Array.isArray(children) ? children.length : 0}
+              {itemCount}
             </span>
           </div>
         )}
@@ -230,14 +233,14 @@ function DragOverlayCard({ video, canais }: { video: Video; canais: Canal[] }) {
 }
 
 // Overlay for dragging column
-function DragOverlayColumn({ column, children }: { column: KanbanColumn; children: React.ReactNode }) {
+function DragOverlayColumn({ column, children, itemCount }: { column: KanbanColumn; children: React.ReactNode; itemCount: number }) {
   return (
     <div className="bg-background/80 backdrop-blur rounded-xl border-2 border-primary/50 p-3 flex flex-col w-[300px] h-full shadow-2xl opacity-80 cursor-grabbing">
       <div className="flex items-center justify-between mb-3 px-1">
         <div className="flex items-center gap-2 flex-1">
           <span className="text-sm font-semibold text-foreground truncate">{column.title}</span>
           <span className="text-xs text-muted-foreground bg-secondary/80 px-1.5 py-0.5 rounded-full font-medium">
-            {Array.isArray(children) ? children.length : 0}
+            {itemCount}
           </span>
         </div>
       </div>
@@ -478,6 +481,7 @@ export default function Kanban() {
                     onEditTitle={(newTitle) => updateColumn(col.id, { title: newTitle })}
                     onDelete={() => setDeleteColumnId(col.id)}
                     onAddVideo={() => handleCreateVideo(col.id)}
+                    itemCount={videos.filter(v => v.column_id === col.id).length}
                   >
                     <SortableContext items={(columnVideos[col.id] || []).map((v) => v.id)} strategy={verticalListSortingStrategy}>
                       {(columnVideos[col.id] || []).map((video) => (
@@ -491,7 +495,7 @@ export default function Kanban() {
           </div>
           <DragOverlay>
             {activeColumn && (
-              <DragOverlayColumn column={activeColumn}>
+              <DragOverlayColumn column={activeColumn} itemCount={(columnVideos[activeColumn.id] || []).length}>
                 {columnVideos[activeColumn.id]?.map(video => (
                   <div key={video.id} className="bg-card border border-border/50 rounded-lg p-3 opacity-50">
                     <p className="text-sm font-medium">{video.titulo}</p>
