@@ -14,7 +14,10 @@ export function useCanais() {
     const [loading, setLoading] = useState(true);
 
     const fetch = useCallback(async () => {
-        if (!user || !ownerId) return;
+        if (!user || !ownerId) {
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         const { data, error } = await supabase
             .from("canais")

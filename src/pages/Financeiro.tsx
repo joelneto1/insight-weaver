@@ -152,7 +152,10 @@ export default function Financeiro() {
     }, [form.valorUsd, form.cotacao, form.tipo, form.categoria]);
 
     const fetchTransacoes = async () => {
-        if (!user || !ownerId) return;
+        if (!user || !ownerId) {
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         const { data, error } = await supabase
             .from("financeiro")

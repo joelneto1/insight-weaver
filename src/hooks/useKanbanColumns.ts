@@ -14,7 +14,10 @@ export function useKanbanColumns() {
     const [loading, setLoading] = useState(true);
 
     const fetchColumns = useCallback(async () => {
-        if (!user || !ownerId) return;
+        if (!user || !ownerId) {
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         const { data, error } = await supabase
             .from("kanban_columns")
