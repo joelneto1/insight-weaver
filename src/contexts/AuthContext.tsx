@@ -51,55 +51,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isOwner, setIsOwner] = useState(true);
 
   const fetchProfileAndTeam = async (userId: string, email?: string) => {
-    // 1. Fetch Profile
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
+    try {
+      // 1. Fetch Profile
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", userId)
+        .single();
 
-    setProfile(profileData ?? null);
+      if (profileError && profileError.code !== 'PGRST116') {
+        console.error("AuthContext: Profile fetch error:", profileError);
+      }
 
-    // 2. Check Team Membership
-    // Primeiro tenta pelo ID
-    let { data: teamData } = await supabase
-      .from("team_members")
-      .select("id, owner_id, permissions, member_id")
-      .eq("member_id", userId)
-      .maybeSingle();
+      setProfile(profileData ?? null);
 
-    // Se não achou por ID e temos email, tenta por email
-    if (!teamData && email) {
-      const { data: emailData } = await supabase
+      // 2. Check Team Membership
+      let { data: teamData, error: teamError } = await supabase
         .from("team_members")
         .select("id, owner_id, permissions, member_id")
-        .eq("member_email", email)
+        .eq("member_id", userId)
         .maybeSingle();
 
-      teamData = emailData;
+      if (teamError) console.error("AuthContext: Team fetch by ID error:", teamError);
 
-      // Se achou por email mas member_id está vazio, atualiza para vincular
-      if (teamData && !teamData.member_id) {
-        await supabase
+      // Se não achou por ID e temos email, tenta por email
+      if (!teamData && email) {
+        const { data: emailData, error: emailError } = await supabase
           .from("team_members")
-          .update({ member_id: userId })
-          .eq("id", teamData.id);
-      }
-    }
+          .select("id, owner_id, permissions, member_id")
+          .eq("member_email", email)
+          .maybeSingle();
 
-    if (teamData) {
-      // I am a team member
-      setOwnerId(teamData.owner_id);
-      // Ensure permissions is an object, handling potential null/string types
-      const perms = typeof teamData.permissions === 'object' && teamData.permissions !== null
-        ? teamData.permissions as Record<string, boolean>
-        : {};
-      setPermissions(perms);
-      setIsOwner(false);
-    } else {
-      // I am the owner
+        if (emailError) console.error("AuthContext: Team fetch by Email error:", emailError);
+
+        teamData = emailData;
+
+        // Se achou por email mas member_id está vazio, atualiza para vincular
+        if (teamData && !teamData.member_id) {
+          const { error: linkError } = await supabase
+            .from("team_members")
+            .update({ member_id: userId })
+            .eq("id", teamData.id);
+
+          if (linkError) console.error("AuthContext: Team link update error:", linkError);
+        }
+      }
+
+      if (teamData) {
+        // I am a team member
+        setOwnerId(teamData.owner_id);
+        const perms = typeof teamData.permissions === 'object' && teamData.permissions !== null
+          ? teamData.permissions as Record<string, boolean>
+          : {};
+        setPermissions(perms);
+        setIsOwner(false);
+      } else {
+        // I am the owner
+        setOwnerId(userId);
+        setPermissions({});
+        setIsOwner(true);
+      }
+    } catch (err) {
+      console.error("AuthContext: Unexpected error in fetchProfileAndTeam:", err);
+      // Fallback safe state
       setOwnerId(userId);
-      setPermissions({}); // Owners imply full access, logic should handle isOwner check
       setIsOwner(true);
     }
   };
@@ -111,34 +126,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
+    // Subscription
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         if (!mounted) return;
-        setSession(session);
-        setUser(session?.user ?? null);
+        try {
+          setSession(session);
+          setUser(session?.user ?? null);
 
-        if (session?.user) {
-          await fetchProfileAndTeam(session.user.id, session.user.email);
-        } else {
-          setProfile(null);
-          setOwnerId(null);
-          setPermissions({});
-          setIsOwner(true);
+          if (session?.user) {
+            await fetchProfileAndTeam(session.user.id, session.user.email);
+          } else {
+            setProfile(null);
+            setOwnerId(null);
+            setPermissions({});
+            setIsOwner(true);
+          }
+        } catch (error) {
+          console.error("AuthContext: Auth state change error:", error);
+        } finally {
+          if (mounted) setLoading(false);
         }
-        setLoading(false);
       }
     );
 
     // Initial check
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
       if (!mounted) return;
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchProfileAndTeam(session.user.id, session.user.email);
+      if (error) {
+        console.error("AuthContext: Get session error:", error);
         setLoading(false);
-      } else {
-        setLoading(false);
+        return;
+      }
+
+      try {
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          await fetchProfileAndTeam(session.user.id, session.user.email);
+        }
+      } catch (error) {
+        console.error("AuthContext: Initial load error:", error);
+      } finally {
+        if (mounted) setLoading(false);
       }
     });
 
