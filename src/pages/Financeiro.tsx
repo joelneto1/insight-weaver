@@ -6,7 +6,7 @@ import { useCanais } from "@/hooks/useCanais";
 import { formatDate, formatCurrency as formatBRL } from "@/lib/utils";
 import {
     DollarSign, TrendingUp, TrendingDown, Plus, Trash2, ArrowUpRight, ArrowDownRight,
-    Repeat, CircleDot, Tv, PiggyBank, Wallet, BarChart3, Globe, Pencil
+    Repeat, CircleDot, Tv, PiggyBank, Wallet, BarChart3, Globe, Pencil, CalendarIcon, Filter, X
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -16,6 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     PieChart, Pie, Cell
@@ -40,6 +42,36 @@ const CATEGORIAS_ENTRADA = ["Adsense", "Venda de Produtos", "Parcerias", "Outros
 const CATEGORIAS_SAIDA = ["Ferramentas", "Marketing", "Freelancer", "Impostos", "Hospedagem", "Outros"];
 
 const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+type FilterPreset = "1d" | "7d" | "28d" | "90d" | "all" | "custom";
+
+const FILTER_PRESETS: { key: FilterPreset; label: string; shortLabel: string }[] = [
+    { key: "1d", label: "Último dia", shortLabel: "1D" },
+    { key: "7d", label: "Últimos 7 dias", shortLabel: "7D" },
+    { key: "28d", label: "Últimos 28 dias", shortLabel: "28D" },
+    { key: "90d", label: "Últimos 90 dias", shortLabel: "90D" },
+    { key: "all", label: "Tudo", shortLabel: "Tudo" },
+];
+
+const getPresetDateRange = (preset: FilterPreset): { from: Date | null; to: Date | null } => {
+    if (preset === "all") return { from: null, to: null };
+    const to = new Date();
+    to.setHours(23, 59, 59, 999);
+    const from = new Date();
+    from.setHours(0, 0, 0, 0);
+    switch (preset) {
+        case "1d": from.setDate(from.getDate() - 1); break;
+        case "7d": from.setDate(from.getDate() - 7); break;
+        case "28d": from.setDate(from.getDate() - 28); break;
+        case "90d": from.setDate(from.getDate() - 90); break;
+        default: return { from: null, to: null };
+    }
+    return { from, to };
+};
+
+const formatDateShort = (date: Date): string => {
+    return `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`;
+};
 
 const EMPTY_FORM = {
     tipo: "entrada" as "entrada" | "saida",
@@ -112,6 +144,13 @@ export default function Financeiro() {
     const [saving, setSaving] = useState(false);
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
+
+    // Filter state
+    const [filterPreset, setFilterPreset] = useState<FilterPreset>("28d");
+    const [customFrom, setCustomFrom] = useState<Date | undefined>(undefined);
+    const [customTo, setCustomTo] = useState<Date | undefined>(undefined);
+    const [calendarOpen, setCalendarOpen] = useState(false);
+    const [calendarStep, setCalendarStep] = useState<"from" | "to">("from");
 
     useEffect(() => {
         if (user && ownerId) fetchTransacoes();
@@ -250,9 +289,76 @@ export default function Financeiro() {
         setForm(prev => ({ ...prev, [field]: formatCurrencyInput(value) }));
     };
 
-    const totalEntradas = useMemo(() => transacoes.filter(t => t.tipo === "entrada").reduce((s, t) => s + Number(t.valor), 0), [transacoes]);
-    const totalSaidas = useMemo(() => transacoes.filter(t => t.tipo === "saida").reduce((s, t) => s + Number(t.valor), 0), [transacoes]);
-    const totalUsd = useMemo(() => transacoes.reduce((s, t) => s + (Number(t.valor_usd) || 0), 0), [transacoes]);
+    // Compute active date range
+    const activeDateRange = useMemo(() => {
+        if (filterPreset === "custom") {
+            return {
+                from: customFrom || null,
+                to: customTo || null,
+            };
+        }
+        return getPresetDateRange(filterPreset);
+    }, [filterPreset, customFrom, customTo]);
+
+    // Filter transactions by date range
+    const filteredTransacoes = useMemo(() => {
+        if (!activeDateRange.from && !activeDateRange.to) return transacoes;
+        return transacoes.filter(t => {
+            const tDate = new Date(t.data + "T00:00:00");
+            if (activeDateRange.from && tDate < activeDateRange.from) return false;
+            if (activeDateRange.to && tDate > activeDateRange.to) return false;
+            return true;
+        });
+    }, [transacoes, activeDateRange]);
+
+    const handlePresetClick = (preset: FilterPreset) => {
+        setFilterPreset(preset);
+        if (preset !== "custom") {
+            setCustomFrom(undefined);
+            setCustomTo(undefined);
+        }
+    };
+
+    const handleCalendarSelect = (date: Date | undefined) => {
+        if (!date) return;
+        if (calendarStep === "from") {
+            setCustomFrom(date);
+            setCalendarStep("to");
+        } else {
+            // Ensure 'to' is after 'from'
+            if (customFrom && date < customFrom) {
+                setCustomTo(customFrom);
+                setCustomFrom(date);
+            } else {
+                const endOfDay = new Date(date);
+                endOfDay.setHours(23, 59, 59, 999);
+                setCustomTo(endOfDay);
+            }
+            setFilterPreset("custom");
+            setCalendarStep("from");
+            setCalendarOpen(false);
+        }
+    };
+
+    const clearCustomFilter = () => {
+        setFilterPreset("28d");
+        setCustomFrom(undefined);
+        setCustomTo(undefined);
+    };
+
+    const filterLabel = useMemo(() => {
+        if (filterPreset === "custom" && customFrom && customTo) {
+            return `${formatDateShort(customFrom)} — ${formatDateShort(customTo)}`;
+        }
+        if (filterPreset === "custom" && customFrom) {
+            return `A partir de ${formatDateShort(customFrom)}`;
+        }
+        return FILTER_PRESETS.find(p => p.key === filterPreset)?.label || "";
+    }, [filterPreset, customFrom, customTo]);
+
+    const totalEntradas = useMemo(() => filteredTransacoes.filter(t => t.tipo === "entrada").reduce((s, t) => s + Number(t.valor), 0), [filteredTransacoes]);
+    const totalSaidas = useMemo(() => filteredTransacoes.filter(t => t.tipo === "saida").reduce((s, t) => s + Number(t.valor), 0), [filteredTransacoes]);
+    const totalUsd = useMemo(() => filteredTransacoes.reduce((s, t) => s + (Number(t.valor_usd) || 0), 0), [filteredTransacoes]);
     const saldo = totalEntradas - totalSaidas;
     const taxaPoupanca = totalEntradas > 0 ? Math.round((saldo / totalEntradas) * 100) : 0;
 
@@ -262,20 +368,20 @@ export default function Financeiro() {
         for (let i = 5; i >= 0; i--) {
             const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
             const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-            const entradas = transacoes.filter(t => t.tipo === "entrada" && t.data.startsWith(key)).reduce((s, t) => s + Number(t.valor), 0);
-            const saidas = transacoes.filter(t => t.tipo === "saida" && t.data.startsWith(key)).reduce((s, t) => s + Number(t.valor), 0);
+            const entradas = filteredTransacoes.filter(t => t.tipo === "entrada" && t.data.startsWith(key)).reduce((s, t) => s + Number(t.valor), 0);
+            const saidas = filteredTransacoes.filter(t => t.tipo === "saida" && t.data.startsWith(key)).reduce((s, t) => s + Number(t.valor), 0);
             months.push({ name: MESES[d.getMonth()], entradas, saidas });
         }
         return months;
-    }, [transacoes]);
+    }, [filteredTransacoes]);
 
     const canalData = useMemo(() => {
         const map: Record<string, number> = {};
-        transacoes.filter(t => t.tipo === "entrada" && t.canal_nome).forEach(t => {
+        filteredTransacoes.filter(t => t.tipo === "entrada" && t.canal_nome).forEach(t => {
             map[t.canal_nome!] = (map[t.canal_nome!] || 0) + Number(t.valor);
         });
         return Object.entries(map).map(([name, value]) => ({ name, value }));
-    }, [transacoes]);
+    }, [filteredTransacoes]);
 
     const CORES_PIE = ["#06b6d4", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#3b82f6"];
 
@@ -291,6 +397,100 @@ export default function Financeiro() {
                 <Button onClick={handleOpenNew} className="gradient-accent text-primary-foreground gap-1.5 sm:gap-2 text-xs sm:text-sm px-3 sm:px-4 shrink-0">
                     <Plus className="w-4 h-4" /> <span className="hidden xs:inline">Nova </span>Transação
                 </Button>
+            </div>
+
+            {/* ===== FILTER BAR ===== */}
+            <div className="bg-card border border-border/50 rounded-xl p-2.5 sm:p-3">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                    <div className="flex items-center gap-1 text-muted-foreground mr-1">
+                        <Filter className="w-3.5 h-3.5" />
+                        <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider hidden sm:inline">Período</span>
+                    </div>
+
+                    {/* Preset buttons */}
+                    <div className="flex items-center bg-secondary/50 rounded-lg p-0.5 gap-0.5">
+                        {FILTER_PRESETS.map((preset) => (
+                            <button
+                                key={preset.key}
+                                onClick={() => handlePresetClick(preset.key)}
+                                className={`relative px-2.5 sm:px-3.5 py-1.5 text-[11px] sm:text-xs font-semibold rounded-md transition-all duration-200 ${filterPreset === preset.key
+                                        ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25"
+                                        : "text-muted-foreground hover:text-foreground hover:bg-secondary/80"
+                                    }`}
+                            >
+                                <span className="sm:hidden">{preset.shortLabel}</span>
+                                <span className="hidden sm:inline">{preset.label}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Custom date range picker */}
+                    <Popover open={calendarOpen} onOpenChange={(open) => {
+                        setCalendarOpen(open);
+                        if (open) setCalendarStep("from");
+                    }}>
+                        <PopoverTrigger asChild>
+                            <button
+                                className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 text-[11px] sm:text-xs font-semibold rounded-lg border transition-all duration-200 ${filterPreset === "custom"
+                                        ? "border-primary/50 bg-primary/10 text-primary"
+                                        : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border hover:bg-secondary/50"
+                                    }`}
+                            >
+                                <CalendarIcon className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">
+                                    {filterPreset === "custom" && customFrom && customTo
+                                        ? `${formatDateShort(customFrom)} — ${formatDateShort(customTo)}`
+                                        : "Personalizado"}
+                                </span>
+                                <span className="sm:hidden">
+                                    {filterPreset === "custom" && customFrom && customTo
+                                        ? `${String(customFrom.getDate()).padStart(2, "0")}/${String(customFrom.getMonth() + 1).padStart(2, "0")} - ${String(customTo.getDate()).padStart(2, "0")}/${String(customTo.getMonth() + 1).padStart(2, "0")}`
+                                        : "Data"}
+                                </span>
+                            </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 bg-card border-border" align="start" sideOffset={8}>
+                            <div className="p-3 border-b border-border/50">
+                                <p className="text-sm font-semibold text-foreground">
+                                    {calendarStep === "from" ? "📅 Selecione a data inicial" : "📅 Selecione a data final"}
+                                </p>
+                                {calendarStep === "to" && customFrom && (
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                        De: <span className="text-primary font-medium">{formatDateShort(customFrom)}</span>
+                                    </p>
+                                )}
+                            </div>
+                            <Calendar
+                                mode="single"
+                                selected={calendarStep === "from" ? customFrom : customTo}
+                                onSelect={handleCalendarSelect}
+                                disabled={(date) => date > new Date()}
+                                initialFocus
+                                className="pointer-events-auto"
+                            />
+                        </PopoverContent>
+                    </Popover>
+
+                    {/* Clear filter (shown when custom is active) */}
+                    {filterPreset === "custom" && customFrom && (
+                        <button
+                            onClick={clearCustomFilter}
+                            className="flex items-center gap-1 px-2 py-1.5 text-[10px] sm:text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-md transition-colors"
+                        >
+                            <X className="w-3 h-3" />
+                            <span className="hidden sm:inline">Limpar</span>
+                        </button>
+                    )}
+
+                    {/* Active filter indicator */}
+                    <div className="flex-1" />
+                    <div className="text-[10px] sm:text-xs text-muted-foreground font-medium tabular-nums">
+                        {filteredTransacoes.length} {filteredTransacoes.length === 1 ? "transação" : "transações"}
+                        {filterPreset !== "all" && (
+                            <span className="text-muted-foreground/60"> de {transacoes.length}</span>
+                        )}
+                    </div>
+                </div>
             </div>
 
             {/* Cards */}
@@ -368,18 +568,34 @@ export default function Financeiro() {
             </div>
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-card border border-border/50 rounded-xl p-3 sm:p-6">
-                <h2 className="text-base sm:text-lg font-bold text-foreground mb-3 sm:mb-5">Últimas Transações</h2>
+                <div className="flex items-center justify-between mb-3 sm:mb-5">
+                    <h2 className="text-base sm:text-lg font-bold text-foreground">Transações</h2>
+                    <span className="text-[10px] sm:text-xs text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded-full">
+                        {filterLabel}
+                    </span>
+                </div>
                 {loading ? (
                     <div className="flex justify-center py-10 sm:py-12"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
-                ) : transacoes.length === 0 ? (
+                ) : filteredTransacoes.length === 0 ? (
                     <div className="text-center py-10 sm:py-12">
                         <DollarSign className="w-10 h-10 sm:w-12 sm:h-12 text-muted-foreground/30 mx-auto mb-3" />
-                        <p className="text-sm text-muted-foreground">Nenhuma transação registrada ainda.</p>
-                        <Button onClick={handleOpenNew} className="mt-4 gradient-accent text-primary-foreground gap-2 text-sm"><Plus className="w-4 h-4" /> Registrar Primeira</Button>
+                        {transacoes.length === 0 ? (
+                            <>
+                                <p className="text-sm text-muted-foreground">Nenhuma transação registrada ainda.</p>
+                                <Button onClick={handleOpenNew} className="mt-4 gradient-accent text-primary-foreground gap-2 text-sm"><Plus className="w-4 h-4" /> Registrar Primeira</Button>
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-sm text-muted-foreground">Nenhuma transação encontrada no período selecionado.</p>
+                                <Button onClick={() => handlePresetClick("all")} variant="outline" className="mt-4 gap-2 text-sm">
+                                    <Filter className="w-4 h-4" /> Ver Todas
+                                </Button>
+                            </>
+                        )}
                     </div>
                 ) : (
                     <div className="space-y-1">
-                        {transacoes.slice(0, 20).map((t) => (
+                        {filteredTransacoes.map((t) => (
                             <div key={t.id} className="flex items-center gap-2.5 sm:gap-4 py-2.5 sm:py-3 border-b border-border/30 last:border-0 group">
                                 <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center shrink-0 ${t.tipo === "entrada" ? "bg-emerald-500/15" : "bg-red-500/15"}`}>
                                     {t.tipo === "entrada" ? <ArrowUpRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" /> : <ArrowDownRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-400" />}
