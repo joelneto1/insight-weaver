@@ -20,6 +20,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   ownerId: string | null;
+  ownerName: string | null;
   permissions: Record<string, boolean>;
   isOwner: boolean;
 }
@@ -32,6 +33,7 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => { },
   refreshProfile: async () => { },
   ownerId: null,
+  ownerName: null,
   permissions: {},
   isOwner: true,
 });
@@ -42,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [ownerId, setOwnerId] = useState<string | null>(null);
+  const [ownerName, setOwnerName] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
   const [isOwner, setIsOwner] = useState(true);
 
@@ -53,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setProfile(null);
     setOwnerId(null);
+    setOwnerName(null);
     setPermissions({});
     setIsOwner(true);
   }, []);
@@ -124,9 +128,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setPermissions(perms);
         setIsOwner(false);
         console.log("AuthContext: User is team member, owner:", teamData.owner_id);
+
+        // 3. Fetch the owner's profile to get their name
+        const { data: ownerProfile } = await supabase
+          .from("profiles")
+          .select("display_name")
+          .eq("user_id", teamData.owner_id)
+          .maybeSingle();
+
+        if (!isSigningOut.current) {
+          setOwnerName(ownerProfile?.display_name || null);
+          console.log("AuthContext: Owner name:", ownerProfile?.display_name);
+        }
       } else {
         // User is their own owner (either no team entry, or they ARE the owner)
         setOwnerId(userId);
+        setOwnerName(null);
         setPermissions({});
         setIsOwner(true);
         console.log("AuthContext: User is owner, ownerId:", userId);
@@ -136,6 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Fallback on error - user is their own owner
       if (!isSigningOut.current) {
         setOwnerId(userId);
+        setOwnerName(null);
         setPermissions({});
         setIsOwner(true);
       }
@@ -242,7 +260,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearAllState]);
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, signOut, refreshProfile, ownerId, permissions, isOwner }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, signOut, refreshProfile, ownerId, ownerName, permissions, isOwner }}>
       {children}
     </AuthContext.Provider>
   );

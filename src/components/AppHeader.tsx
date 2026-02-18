@@ -12,14 +12,14 @@ import {
   SheetContent,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { LogOut, Settings, User, Search, ChevronDown, Menu, Command } from "lucide-react";
+import { LogOut, Settings, User, Search, ChevronDown, Menu, Command, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { SidebarContent } from "./AppSidebar";
 import { useState } from "react";
 
 export default function AppHeader() {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, isOwner, ownerName } = useAuth();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -57,15 +57,31 @@ export default function AppHeader() {
 
       {/* Left Section: Title & Greeting (Desktop Only) */}
       <div className="hidden md:flex flex-col">
-        <h1 className="text-xl font-bold text-foreground leading-none">DarkTube Dashboard</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-bold text-foreground leading-none">DarkTube Dashboard</h1>
+          {!isOwner && ownerName && (
+            <span className="inline-flex items-center gap-1.5 bg-primary/10 border border-primary/20 text-primary text-xs font-semibold px-3 py-1 rounded-full animate-in fade-in slide-in-from-left-2 duration-300">
+              <Users className="w-3.5 h-3.5" />
+              Equipe de {ownerName}
+            </span>
+          )}
+        </div>
         <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
           Bem-vindo de volta, {firstName} <span className="text-base">👋</span>
         </p>
       </div>
 
-      {/* Mobile Title (When Greeting is Hidden) */}
-      <div className="md:hidden font-bold text-lg truncate flex-1">
-        DarkTube
+      {/* Mobile Title */}
+      <div className="md:hidden flex flex-col flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-lg truncate">DarkTube</span>
+          {!isOwner && ownerName && (
+            <span className="inline-flex items-center gap-1 bg-primary/10 border border-primary/20 text-primary text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0">
+              <Users className="w-3 h-3" />
+              {ownerName}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Right Section Container */}
@@ -105,6 +121,12 @@ export default function AppHeader() {
                 <div className="flex flex-col space-y-0.5 leading-none">
                   <p className="font-medium text-sm text-foreground">{profile?.display_name}</p>
                   <p className="text-xs text-muted-foreground truncate w-[180px]">{user.email}</p>
+                  {!isOwner && ownerName && (
+                    <p className="text-[11px] text-primary font-medium flex items-center gap-1 mt-1">
+                      <Users className="w-3 h-3" />
+                      Membro da equipe de {ownerName}
+                    </p>
+                  )}
                 </div>
               </div>
               <DropdownMenuSeparator />
