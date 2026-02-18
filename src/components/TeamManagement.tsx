@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Users, UserPlus, Trash2, Shield, Mail } from "lucide-react";
+import { Users, Mail, UserPlus, Trash2, X, Loader2 } from "lucide-react";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -91,7 +92,12 @@ export function TeamManagement() {
                 }
             });
 
-            if (error) throw new Error(error.message || "Erro na função.");
+            if (error) {
+                // Try to parse detailed error from response if available
+                console.error("Function error detailed:", error);
+                throw new Error("Falha ao criar usuário. Verifique se o email já existe.");
+            }
+
             if (data && data.error) throw new Error(data.error);
 
             toast({ title: "Membro criado!", description: "Usuário cadastrado com sucesso." });
@@ -153,22 +159,35 @@ export function TeamManagement() {
                 </Button>
             </div>
 
-            {/* Dialog for Create Member */}
+            {/* Dialog for Create Member - Updated CSS for Centering */}
             {isCreateModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-                    <div className="bg-card border border-border w-full max-w-md p-6 rounded-xl shadow-lg space-y-4">
-                        <h3 className="text-lg font-bold">Cadastrar Novo Membro</h3>
-                        <div className="space-y-3">
-                            <div>
-                                <label className="text-sm font-medium">Nome (Opcional)</label>
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in-0">
+                    <div className="bg-card border border-border w-full max-w-md p-6 rounded-xl shadow-2xl space-y-5 animate-in zoom-in-95 relative">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-4 top-4 text-muted-foreground hover:text-primary"
+                            onClick={() => setIsCreateModalOpen(false)}
+                        >
+                            <X className="w-4 h-4" />
+                        </Button>
+
+                        <div className="space-y-1">
+                            <h3 className="text-xl font-bold">Cadastrar Novo Membro</h3>
+                            <p className="text-sm text-muted-foreground">Preencha os dados do colaborador.</p>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label>Nome (Opcional)</Label>
                                 <Input
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     placeholder="Nome do colaborador"
                                 />
                             </div>
-                            <div>
-                                <label className="text-sm font-medium">Email *</label>
+                            <div className="space-y-2">
+                                <Label>Email *</Label>
                                 <Input
                                     value={formData.email}
                                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -176,8 +195,8 @@ export function TeamManagement() {
                                     type="email"
                                 />
                             </div>
-                            <div>
-                                <label className="text-sm font-medium">Senha *</label>
+                            <div className="space-y-2">
+                                <Label>Senha *</Label>
                                 <Input
                                     value={formData.password}
                                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
@@ -186,10 +205,16 @@ export function TeamManagement() {
                                 />
                             </div>
                         </div>
-                        <div className="flex justify-end gap-2 pt-2">
+
+                        <div className="flex justify-end gap-3 pt-4">
                             <Button variant="outline" onClick={() => setIsCreateModalOpen(false)} disabled={creating}>Cancelar</Button>
                             <Button onClick={handleCreateMember} disabled={creating} className="gradient-accent text-primary-foreground">
-                                {creating ? "Criando..." : "Cadastrar"}
+                                {creating ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        Criando...
+                                    </>
+                                ) : "Cadastrar Membro"}
                             </Button>
                         </div>
                     </div>
