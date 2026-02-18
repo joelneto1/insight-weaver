@@ -64,12 +64,18 @@ export default function Contas() {
 
     // Fetch contas
     useEffect(() => {
-        if (!user || !ownerId) return;
+        if (!user || !ownerId) {
+            setLoading(false);
+            return;
+        }
         fetchContas();
     }, [user, ownerId]);
 
     const fetchContas = async () => {
-        if (!user || !ownerId) return;
+        if (!user || !ownerId) {
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         const { data, error } = await supabase
             .from("contas")

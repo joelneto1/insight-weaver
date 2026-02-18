@@ -9,8 +9,6 @@ import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/Logo";
 
-// ... (keep Particles and MeshGradient)
-
 // Floating particles for animated background
 function Particles() {
   const [particles] = useState(() =>

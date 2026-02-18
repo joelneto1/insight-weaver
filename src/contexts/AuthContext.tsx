@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
@@ -12,11 +12,6 @@ interface Profile {
   birth_date: string | null;
 }
 
-interface TeamMember {
-  owner_id: string;
-  permissions: Record<string, boolean>;
-}
-
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -24,9 +19,9 @@ interface AuthContextType {
   loading: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  ownerId: string | null; // ID efetivo do dono dos dados (meu ou do chefe)
-  permissions: Record<string, boolean>; // Minhas permissões
-  isOwner: boolean; // Se sou o dono da conta principal
+  ownerId: string | null;
+  permissions: Record<string, boolean>;
+  isOwner: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -41,6 +36,22 @@ const AuthContext = createContext<AuthContextType>({
   isOwner: true,
 });
 
+function clearState(
+  setSession: (s: Session | null) => void,
+  setUser: (u: User | null) => void,
+  setProfile: (p: Profile | null) => void,
+  setOwnerId: (o: string | null) => void,
+  setPermissions: (p: Record<string, boolean>) => void,
+  setIsOwner: (b: boolean) => void,
+) {
+  setSession(null);
+  setUser(null);
+  setProfile(null);
+  setOwnerId(null);
+  setPermissions({});
+  setIsOwner(true);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -50,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
   const [isOwner, setIsOwner] = useState(true);
 
-  const fetchProfileAndTeam = async (userId: string, email?: string) => {
+  const fetchProfileAndTeam = useCallback(async (userId: string, email?: string) => {
     try {
       // 1. Fetch Profile
       const { data: profileData, error: profileError } = await supabase
@@ -62,7 +73,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (profileError && profileError.code !== 'PGRST116') {
         console.error("AuthContext: Profile fetch error:", profileError);
       }
-
       setProfile(profileData ?? null);
 
       // 2. Check Team Membership
@@ -83,22 +93,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .maybeSingle();
 
         if (emailError) console.error("AuthContext: Team fetch by Email error:", emailError);
-
         teamData = emailData;
 
-        // Se achou por email mas member_id está vazio, atualiza para vincular
         if (teamData && !teamData.member_id) {
-          const { error: linkError } = await supabase
+          await supabase
             .from("team_members")
             .update({ member_id: userId })
             .eq("id", teamData.id);
-
-          if (linkError) console.error("AuthContext: Team link update error:", linkError);
         }
       }
 
       if (teamData) {
-        // I am a team member
         setOwnerId(teamData.owner_id);
         const perms = typeof teamData.permissions === 'object' && teamData.permissions !== null
           ? teamData.permissions as Record<string, boolean>
@@ -106,111 +111,104 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setPermissions(perms);
         setIsOwner(false);
       } else {
-        // I am the owner
         setOwnerId(userId);
         setPermissions({});
         setIsOwner(true);
       }
     } catch (err) {
       console.error("AuthContext: Unexpected error in fetchProfileAndTeam:", err);
-      // Fallback safe state
       setOwnerId(userId);
       setIsOwner(true);
     }
-  };
+  }, []);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (user) await fetchProfileAndTeam(user.id, user.email);
-  };
+  }, [user, fetchProfileAndTeam]);
 
   useEffect(() => {
     let mounted = true;
+    let initDone = false;
 
-    // Helper to safely fetch data
-    const initPayload = async (session: Session | null) => {
-      try {
-        setSession(session);
-        setUser(session?.user ?? null);
+    const loadSession = async (currentSession: Session | null) => {
+      if (!mounted) return;
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
 
-        if (session?.user) {
-          await fetchProfileAndTeam(session.user.id, session.user.email);
-        } else {
-          setProfile(null);
-          setOwnerId(null);
-          setPermissions({});
-          setIsOwner(true);
-        }
-      } catch (err) {
-        console.error("AuthContext: Error in initPayload", err);
+      if (currentSession?.user) {
+        await fetchProfileAndTeam(currentSession.user.id, currentSession.user.email);
+      } else {
+        clearState(setSession, setUser, setProfile, setOwnerId, setPermissions, setIsOwner);
       }
     };
 
-    // 1. Initial Load Function
+    // 1. Fetch initial session
     const initializeAuth = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const { data: { session: currentSession }, error } = await supabase.auth.getSession();
         if (error) {
           console.error("AuthContext: getSession error", error);
-          throw error;
         }
-        if (mounted) await initPayload(session);
+        if (mounted) {
+          await loadSession(currentSession);
+        }
       } catch (error) {
         console.error("AuthContext: Initial session fetch error:", error);
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted) {
+          initDone = true;
+          setLoading(false);
+        }
       }
     };
 
-    // Start initialization
     initializeAuth();
 
-    // 2. Auth State Listener
+    // 2. Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (event, currentSession) => {
         if (!mounted) return;
+        console.log("AuthContext: onAuthStateChange event:", event);
 
-        // Always try to load payload on significant events
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
-          await initPayload(session);
-        } else if (event === 'SIGNED_OUT') {
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-          setOwnerId(null);
-          setPermissions({});
-          setIsOwner(true);
+        if (event === 'SIGNED_OUT') {
+          clearState(setSession, setUser, setProfile, setOwnerId, setPermissions, setIsOwner);
+        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          await loadSession(currentSession);
         }
+        // Ignore INITIAL_SESSION since initializeAuth already handles it
 
-        // Ensure loading is cleared on any auth event
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     );
 
-    // 3. Safety Timeout
-    // Force loading to false after 5 seconds to prevent infinite loops if something hangs
-    const timeoutId = setTimeout(() => {
-      if (mounted && loading) {
-        console.warn("AuthContext: Loading timed out, forcing completion");
+    // 3. Safety timeout — force loading=false after 3s
+    const safetyTimer = setTimeout(() => {
+      if (mounted && !initDone) {
+        console.warn("AuthContext: Safety timeout — forcing loading=false");
         setLoading(false);
       }
-    }, 5000);
+    }, 3000);
 
     return () => {
       mounted = false;
-      clearTimeout(timeoutId);
+      clearTimeout(safetyTimer);
       subscription.unsubscribe();
     };
-  }, []);
+  }, [fetchProfileAndTeam]);
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
-    setProfile(null);
-    setOwnerId(null);
-    setPermissions({});
-    setIsOwner(true);
-  };
+  const signOut = useCallback(async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("AuthContext: signOut error", err);
+    } finally {
+      // Always clear state, even if Supabase call fails
+      clearState(setSession, setUser, setProfile, setOwnerId, setPermissions, setIsOwner);
+      setLoading(false);
+      // Force redirect to auth
+      window.location.href = '/auth';
+    }
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, session, profile, loading, signOut, refreshProfile, ownerId, permissions, isOwner }}>
