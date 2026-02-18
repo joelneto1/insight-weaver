@@ -17,7 +17,9 @@ export function useVideos() {
     const [loading, setLoading] = useState(true);
 
     const fetch = useCallback(async () => {
+        console.log("useVideos: fetch called, user:", user?.id, "ownerId:", ownerId);
         if (!user || !ownerId) {
+            console.warn("useVideos: skipping fetch - user or ownerId is null", { user: !!user, ownerId });
             setLoading(false);
             return;
         }
@@ -29,7 +31,7 @@ export function useVideos() {
                 .eq("user_id", ownerId)
                 .order("column_id", { ascending: true })
                 .order("position", { ascending: true });
-
+            console.log("useVideos: query result", { count: data?.length, error: error?.message });
             if (error) {
                 toastRef.current({ title: "Erro ao carregar vídeos", description: error.message, variant: "destructive" });
             } else {

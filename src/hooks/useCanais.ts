@@ -17,7 +17,9 @@ export function useCanais() {
     const [loading, setLoading] = useState(true);
 
     const fetch = useCallback(async () => {
+        console.log("useCanais: fetch called, user:", user?.id, "ownerId:", ownerId);
         if (!user || !ownerId) {
+            console.warn("useCanais: skipping fetch - user or ownerId is null", { user: !!user, ownerId });
             setLoading(false);
             return;
         }
@@ -28,6 +30,7 @@ export function useCanais() {
                 .select("*")
                 .eq("user_id", ownerId)
                 .order("created_at", { ascending: true });
+            console.log("useCanais: query result", { count: data?.length, error: error?.message });
             if (error) {
                 toastRef.current({ title: "Erro ao carregar canais", description: error.message, variant: "destructive" });
             } else {

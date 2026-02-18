@@ -17,7 +17,9 @@ export function useKanbanColumns() {
     const [loading, setLoading] = useState(true);
 
     const fetchColumns = useCallback(async () => {
+        console.log("useKanbanColumns: fetch called, user:", user?.id, "ownerId:", ownerId);
         if (!user || !ownerId) {
+            console.warn("useKanbanColumns: skipping fetch - user or ownerId is null", { user: !!user, ownerId });
             setLoading(false);
             return;
         }
@@ -28,7 +30,7 @@ export function useKanbanColumns() {
                 .select("*")
                 .eq("user_id", ownerId)
                 .order("position", { ascending: true });
-
+            console.log("useKanbanColumns: query result", { count: data?.length, error: error?.message });
             if (error) {
                 toastRef.current({ title: "Erro ao carregar colunas", description: error.message, variant: "destructive" });
             } else {
