@@ -93,12 +93,22 @@ export function TeamManagement() {
             });
 
             if (error) {
-                // Try to parse detailed error from response if available
-                console.error("Function error detailed:", error);
-                throw new Error("Falha ao criar usuário. Verifique se o email já existe.");
+                console.error("Function invoke error:", error);
+
+                // Tenta ler o corpo da resposta de erro se possível
+                let contextMsg = "";
+                if (error instanceof Error) {
+                    contextMsg = error.message;
+                } else if (typeof error === 'object' && error !== null) {
+                    contextMsg = JSON.stringify(error);
+                }
+
+                throw new Error(`Erro: ${contextMsg}`);
             }
 
-            if (data && data.error) throw new Error(data.error);
+            if (data && data.error) {
+                throw new Error(data.error);
+            }
 
             toast({ title: "Membro criado!", description: "Usuário cadastrado com sucesso." });
             setFormData({ name: "", email: "", password: "" });
