@@ -136,6 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
       if (session?.user) {
         await fetchProfileAndTeam(session.user.id, session.user.email);
+        setLoading(false);
       } else {
         setLoading(false);
       }
