@@ -35,8 +35,13 @@ export function TeamManagement() {
     const { toast } = useToast();
     const [members, setMembers] = useState<TeamMember[]>([]);
     const [loading, setLoading] = useState(true);
-    const [newEmail, setNewEmail] = useState("");
-    const [inviting, setInviting] = useState(false);
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [formData, setFormData] = useState({
+        name: "",
+        email: "",
+        password: "",
+    });
+    const [creating, setCreating] = useState(false);
 
     useEffect(() => {
         if (user) fetchMembers();
@@ -64,34 +69,42 @@ export function TeamManagement() {
         setLoading(false);
     };
 
-    const handleInvite = async () => {
-        if (!newEmail || !newEmail.includes("@")) {
-            toast({ title: "Email inválido", variant: "destructive" });
+    const handleCreateMember = async () => {
+        if (!formData.email || !formData.password) {
+            toast({ title: "Email e Senha são obrigatórios", variant: "destructive" });
             return;
         }
-        if (members.some(m => m.member_email === newEmail)) {
-            toast({ title: "Usuário já adicionado", variant: "destructive" });
+        if (formData.password.length < 6) {
+            toast({ title: "Senha muito curta", description: "Mínimo de 6 caracteres.", variant: "destructive" });
             return;
         }
 
-        setInviting(true);
-        // Tentar achar usuário existente para já vincular ID (opcional)
-        // Mas como não temos acesso a auth.users, deixamos null e esperamos o user logar.
+        setCreating(true);
 
-        const { error } = await supabase.from("team_members").insert({
-            owner_id: user?.id,
-            member_email: newEmail,
-            permissions: { financeiro: false, contas: false, kanban: true } // Default permissions
-        });
+        try {
+            const { data, error } = await supabase.functions.invoke('create-team-member', {
+                body: {
+                    email: formData.email,
+                    password: formData.password,
+                    name: formData.name,
+                    permissions: { financeiro: false, contas: false, kanban: true } // Default
+                }
+            });
 
-        if (error) {
-            toast({ title: "Erro ao convidar", description: error.message, variant: "destructive" });
-        } else {
-            toast({ title: "Convite enviado!", description: "O usuário terá acesso assim que fizer login." });
-            setNewEmail("");
+            if (error) throw new Error(error.message || "Erro na função.");
+            if (data && data.error) throw new Error(data.error);
+
+            toast({ title: "Membro criado!", description: "Usuário cadastrado com sucesso." });
+            setFormData({ name: "", email: "", password: "" });
+            setIsCreateModalOpen(false);
             fetchMembers();
+
+        } catch (err: any) {
+            console.error("Erro ao criar membro:", err);
+            toast({ title: "Erro ao criar", description: err.message || "Falha ao criar usuário.", variant: "destructive" });
+        } finally {
+            setCreating(false);
         }
-        setInviting(false);
     };
 
     const togglePermission = async (memberId: string, permissionKey: string, currentValue: boolean) => {
@@ -133,23 +146,55 @@ export function TeamManagement() {
                     <h2 className="text-lg font-semibold flex items-center gap-2">
                         <Users className="w-5 h-5 text-primary" /> Gerenciar Equipe
                     </h2>
-                    <p className="text-sm text-muted-foreground">Adicione membros para colaborar no seu workspace.</p>
+                    <p className="text-sm text-muted-foreground">Cadastre membros para colaborar no seu workspace.</p>
                 </div>
-                <div className="flex w-full sm:w-auto gap-2">
-                    <div className="relative flex-1 sm:w-64">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Email do colaborador"
-                            value={newEmail}
-                            onChange={e => setNewEmail(e.target.value)}
-                            className="pl-9"
-                        />
-                    </div>
-                    <Button onClick={handleInvite} disabled={inviting || !newEmail} className="gradient-accent text-primary-foreground">
-                        <UserPlus className="w-4 h-4 mr-2" /> Convidar
-                    </Button>
-                </div>
+                <Button onClick={() => setIsCreateModalOpen(true)} className="gradient-accent text-primary-foreground">
+                    <UserPlus className="w-4 h-4 mr-2" /> Novo Membro
+                </Button>
             </div>
+
+            {/* Dialog for Create Member */}
+            {isCreateModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+                    <div className="bg-card border border-border w-full max-w-md p-6 rounded-xl shadow-lg space-y-4">
+                        <h3 className="text-lg font-bold">Cadastrar Novo Membro</h3>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="text-sm font-medium">Nome (Opcional)</label>
+                                <Input
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    placeholder="Nome do colaborador"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium">Email *</label>
+                                <Input
+                                    value={formData.email}
+                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    placeholder="colaborador@email.com"
+                                    type="email"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium">Senha *</label>
+                                <Input
+                                    value={formData.password}
+                                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                    placeholder="Senha de acesso"
+                                    type="password"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-2">
+                            <Button variant="outline" onClick={() => setIsCreateModalOpen(false)} disabled={creating}>Cancelar</Button>
+                            <Button onClick={handleCreateMember} disabled={creating} className="gradient-accent text-primary-foreground">
+                                {creating ? "Criando..." : "Cadastrar"}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="border border-border rounded-lg overflow-hidden">
                 <Table>
