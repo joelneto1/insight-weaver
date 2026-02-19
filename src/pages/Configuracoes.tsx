@@ -123,14 +123,14 @@ export default function Configuracoes() {
   };
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-2xl">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-2xl">
       <div className="flex items-center gap-2">
-        <Settings className="w-6 h-6 text-primary" />
-        <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
+        <Settings className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground">Configurações</h1>
       </div>
 
       {/* Profile */}
-      <div className="bg-card border border-border rounded-xl p-6 space-y-6">
+      <div className="bg-card border border-border rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <User className="w-5 h-5 text-primary" />
@@ -230,12 +230,12 @@ export default function Configuracoes() {
       {/* Security */}
       <div className="bg-card border border-border rounded-xl p-6 space-y-4">
         <h2 className="text-lg font-semibold text-foreground">Segurança</h2>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <p className="font-medium text-foreground">Alterar Senha</p>
             <p className="text-sm text-muted-foreground">Enviaremos um link para redefinição por e-mail</p>
           </div>
-          <Button variant="outline" onClick={handleChangePassword}>Redefinir Senha</Button>
+          <Button variant="outline" onClick={handleChangePassword} className="w-full sm:w-auto">Redefinir Senha</Button>
         </div>
       </div>
 

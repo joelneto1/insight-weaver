@@ -123,16 +123,16 @@ export default function Canais() {
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="space-y-1"><label className="text-sm font-medium">Nome do Canal *</label><Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Ex: DarkMundo" maxLength={100} /></div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1"><label className="text-sm font-medium">Nicho</label><Input value={form.nicho} onChange={(e) => setForm({ ...form, nicho: e.target.value })} placeholder="Ex: Terror" maxLength={50} /></div>
                 <div className="space-y-1"><label className="text-sm font-medium">Subnicho</label><Input value={form.subnicho} onChange={(e) => setForm({ ...form, subnicho: e.target.value })} placeholder="Ex: Histórias reais" maxLength={50} /></div>
               </div>
               <div className="space-y-1"><label className="text-sm font-medium">Micronicho</label><Input value={form.micronicho} onChange={(e) => setForm({ ...form, micronicho: e.target.value })} placeholder="Ex: Casos sobrenaturais" maxLength={50} /></div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1"><label className="text-sm font-medium">Idioma</label><Input value={form.idioma} onChange={(e) => setForm({ ...form, idioma: e.target.value })} /></div>
                 <div className="space-y-1"><label className="text-sm font-medium">Frequência</label><Input value={form.frequencia} onChange={(e) => setForm({ ...form, frequencia: e.target.value })} /></div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1"><label className="text-sm font-medium">Email</label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
                 <div className="space-y-1"><label className="text-sm font-medium">Horário de Postagem</label><Input value={form.horario_postagem} onChange={(e) => setForm({ ...form, horario_postagem: e.target.value })} /></div>
               </div>
@@ -175,10 +175,10 @@ export default function Canais() {
       {/* Canal selector */}
       <div className="flex items-center gap-2">
         {loading ? (
-          <div className="animate-pulse h-10 w-64 bg-muted/60 rounded-md" />
+          <div className="animate-pulse h-10 w-full sm:w-64 bg-muted/60 rounded-md" />
         ) : (
           <Select value={selectedCanal || canal?.id || ""} onValueChange={handleSelectChange}>
-            <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-64"><SelectValue /></SelectTrigger>
             <SelectContent>
               {canais.map((c) => (
                 <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
@@ -190,7 +190,7 @@ export default function Canais() {
 
       {canal && (
         <motion.div key={canal.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-          className="bg-card border border-border rounded-xl p-6 space-y-5">
+          className="bg-card border border-border rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-5">
           <div className="flex items-start justify-between flex-wrap gap-4">
             <div className="flex items-start gap-3">
               <Tv className="w-5 h-5 text-primary mt-1" />
@@ -214,9 +214,9 @@ export default function Canais() {
                 </div>
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleOpenEdit} className="gap-2"><Edit2 className="w-4 h-4" /> Editar</Button>
-              <Button variant="destructive" size="sm" onClick={() => setDeleteId(canal.id)} className="gap-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 border-red-500/20"><Trash2 className="w-4 h-4" /> Excluir</Button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button variant="outline" size="sm" onClick={handleOpenEdit} className="gap-2 w-full sm:w-auto"><Edit2 className="w-4 h-4" /> Editar</Button>
+              <Button variant="destructive" size="sm" onClick={() => setDeleteId(canal.id)} className="gap-2 w-full sm:w-auto bg-red-500/10 text-red-500 hover:bg-red-500/20 border-red-500/20"><Trash2 className="w-4 h-4" /> Excluir</Button>
             </div>
           </div>
 

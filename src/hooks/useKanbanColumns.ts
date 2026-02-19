@@ -19,7 +19,7 @@ export function useKanbanColumns() {
     const [columns, setColumns] = useState<KanbanColumn[]>(cache.ownerId === ownerId && cache.data ? cache.data : []);
     const [loading, setLoading] = useState(!(cache.ownerId === ownerId && cache.data));
 
-    const fetchColumns = useCallback(async (force = false) => {
+    const fetchColumns = useCallback(async (force = false, silent = false) => {
         if (!user || !ownerId) {
             setLoading(false);
             return;
@@ -29,7 +29,8 @@ export function useKanbanColumns() {
             setLoading(false);
             return;
         }
-        setLoading(true);
+        // Only show loading spinner on initial load, not on background refetch
+        if (!silent) setLoading(true);
         try {
             const { data, error } = await supabase
                 .from("kanban_columns")
@@ -59,56 +60,96 @@ export function useKanbanColumns() {
         if (!user || !ownerId) return null;
         const newPosition = columns.length > 0 ? Math.max(...columns.map(c => c.position)) + 1 : 0;
 
-        const { data, error } = await supabase
-            .from("kanban_columns")
-            .insert({ user_id: ownerId, title, position: newPosition })
-            .select()
-            .single();
+        // Optimistic: add column immediately to UI
+        const tempId = `temp-${Date.now()}`;
+        const optimisticCol = { id: tempId, user_id: ownerId, title, position: newPosition, created_at: new Date().toISOString() } as KanbanColumn;
+        setColumns(prev => [...prev, optimisticCol]);
 
-        if (error) {
-            toastRef.current({ title: "Erro ao criar coluna", description: error.message, variant: "destructive" });
+        try {
+            const { data, error } = await supabase
+                .from("kanban_columns")
+                .insert({ user_id: ownerId, title, position: newPosition })
+                .select()
+                .single();
+
+            if (error) {
+                // Rollback optimistic update
+                setColumns(prev => prev.filter(c => c.id !== tempId));
+                toastRef.current({ title: "Erro ao criar coluna", description: error.message, variant: "destructive" });
+                return null;
+            }
+
+            toastRef.current({ title: "Coluna criada!" });
+            // Silent refetch to get real ID from server
+            await fetchColumns(true, true);
+            return data;
+        } catch (err) {
+            // Rollback on network error
+            setColumns(prev => prev.filter(c => c.id !== tempId));
+            console.error("addColumn error:", err);
+            toastRef.current({ title: "Erro ao criar coluna", variant: "destructive" });
             return null;
         }
-
-        toastRef.current({ title: "Coluna criada!" });
-        await fetchColumns(true);
-        return data;
     };
 
     const updateColumn = async (id: string, updates: Partial<KanbanColumnInsert>) => {
         if (!user || !ownerId) return false;
-        const { error } = await supabase
-            .from("kanban_columns")
-            .update(updates)
-            .eq("id", id)
-            .eq("user_id", ownerId);
 
-        if (error) {
-            toastRef.current({ title: "Erro ao atualizar coluna", description: error.message, variant: "destructive" });
+        // Optimistic update
+        setColumns(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+
+        try {
+            const { error } = await supabase
+                .from("kanban_columns")
+                .update(updates)
+                .eq("id", id)
+                .eq("user_id", ownerId);
+
+            if (error) {
+                toastRef.current({ title: "Erro ao atualizar coluna", description: error.message, variant: "destructive" });
+                await fetchColumns(true, true); // Rollback by refetching
+                return false;
+            }
+
+            // Silent refetch to sync
+            await fetchColumns(true, true);
+            return true;
+        } catch (err) {
+            console.error("updateColumn error:", err);
+            await fetchColumns(true, true);
             return false;
         }
-
-        await fetchColumns(true);
-        return true;
     };
 
     const deleteColumn = async (id: string) => {
         if (!user || !ownerId) return false;
 
-        const { error } = await supabase
-            .from("kanban_columns")
-            .delete()
-            .eq("id", id)
-            .eq("user_id", ownerId);
+        // Optimistic delete
+        const backup = columns;
+        setColumns(prev => prev.filter(c => c.id !== id));
 
-        if (error) {
-            toastRef.current({ title: "Erro ao excluir coluna", description: error.message, variant: "destructive" });
+        try {
+            const { error } = await supabase
+                .from("kanban_columns")
+                .delete()
+                .eq("id", id)
+                .eq("user_id", ownerId);
+
+            if (error) {
+                setColumns(backup); // Rollback
+                toastRef.current({ title: "Erro ao excluir coluna", description: error.message, variant: "destructive" });
+                return false;
+            }
+
+            toastRef.current({ title: "Coluna excluída!" });
+            // Silent refetch to sync cache
+            await fetchColumns(true, true);
+            return true;
+        } catch (err) {
+            setColumns(backup); // Rollback
+            console.error("deleteColumn error:", err);
             return false;
         }
-
-        toastRef.current({ title: "Coluna excluída!" });
-        await fetchColumns(true);
-        return true;
     };
 
     const reorderColumns = async (newOrder: KanbanColumn[]) => {

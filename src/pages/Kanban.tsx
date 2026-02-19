@@ -90,7 +90,7 @@ function DroppableColumn({ id, title, children, attributes, listeners, onEditTit
   };
 
   return (
-    <div className="bg-secondary/30 rounded-xl border border-border/40 p-3 flex flex-col min-w-[280px] w-[300px] h-full shadow-sm">
+    <div className="bg-secondary/30 rounded-xl border border-border/40 p-2.5 sm:p-3 flex flex-col min-w-[260px] sm:min-w-[280px] w-[270px] sm:w-[300px] h-full shadow-sm">
       {/* Header - Drag Handle is valid here */}
       <div
         {...attributes}
@@ -132,7 +132,7 @@ function DroppableColumn({ id, title, children, attributes, listeners, onEditTit
           </div>
         )}
 
-        <div className="flex items-center opacity-0 group-hover/col:opacity-100 transition-opacity" onPointerDown={(e) => e.stopPropagation()}>
+        <div className="flex items-center sm:opacity-0 sm:group-hover/col:opacity-100 transition-opacity" onPointerDown={(e) => e.stopPropagation()}>
           <button onClick={onAddVideo} className="p-1 rounded hover:bg-secondary transition-colors mr-1" title="Adicionar vídeo">
             <Plus className="w-3.5 h-3.5 text-muted-foreground" />
           </button>
@@ -592,28 +592,44 @@ export default function Kanban() {
       return;
     }
     setSaving(true);
-    if (editingVideoId) {
-      await update(editingVideoId, videoForm);
-    } else {
-      await create(videoForm);
+    try {
+      if (editingVideoId) {
+        await update(editingVideoId, videoForm);
+      } else {
+        await create(videoForm);
+      }
+      setShowVideoModal(false);
+    } catch (err) {
+      console.error("handleSaveVideo error:", err);
+      toast({ title: "Erro ao salvar vídeo", variant: "destructive" });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    setShowVideoModal(false);
   };
 
   const handleDeleteVideo = async () => {
     if (!deleteVideoId) return;
-    await remove(deleteVideoId);
+    try {
+      await remove(deleteVideoId);
+    } catch (err) {
+      console.error("handleDeleteVideo error:", err);
+    }
     setDeleteVideoId(null);
   };
 
   const handleCreateColumn = async () => {
-    if (!newColumnTitle) return;
+    if (!newColumnTitle.trim()) return;
     setSaving(true);
-    await addColumn(newColumnTitle);
-    setNewColumnTitle("");
-    setSaving(false);
-    setShowColumnModal(false);
+    try {
+      await addColumn(newColumnTitle.trim());
+      setNewColumnTitle("");
+      setShowColumnModal(false);
+    } catch (err) {
+      console.error("handleCreateColumn error:", err);
+      toast({ title: "Erro ao criar coluna", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   }
 
   const handleDeleteColumnConfirm = async () => {
@@ -622,7 +638,11 @@ export default function Kanban() {
     if (hasVideos) {
       toast({ title: "Ação bloqueada", description: "Remova ou mova os vídeos desta coluna antes de excluir.", variant: "destructive" });
     } else {
-      await deleteColumn(deleteColumnId);
+      try {
+        await deleteColumn(deleteColumnId);
+      } catch (err) {
+        console.error("handleDeleteColumn error:", err);
+      }
     }
     setDeleteColumnId(null);
   }
@@ -630,11 +650,11 @@ export default function Kanban() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[100vw] overflow-x-hidden h-[calc(100vh-60px)] flex flex-col">
       <PageHeader title="Kanban de Produção" description="Gerencie seu fluxo de produção de vídeos">
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowColumnModal(true)} className="gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <Button variant="outline" onClick={() => setShowColumnModal(true)} className="gap-2 w-full sm:w-auto">
             <Plus className="w-4 h-4" /> Nova Coluna
           </Button>
-          <Button onClick={() => handleCreateVideo()} className="gradient-accent text-primary-foreground gap-2">
+          <Button onClick={() => handleCreateVideo()} className="gradient-accent text-primary-foreground gap-2 w-full sm:w-auto">
             <Plus className="w-4 h-4" /> Novo Vídeo
           </Button>
         </div>
@@ -653,7 +673,7 @@ export default function Kanban() {
           onDragEnd={handleDragEnd}
           measuring={measuring}
         >
-          <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4">
+          <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4 kanban-scroll">
             <SortableContext items={columns.map(c => c.id)} strategy={horizontalListSortingStrategy}>
               <div className="flex gap-4 h-full min-w-max px-1 items-start">
                 {columns.map((col) => (

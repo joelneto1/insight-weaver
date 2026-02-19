@@ -90,13 +90,13 @@ export default function Prompts() {
           <Input placeholder="Buscar prompts..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
         </div>
         <Select value={filterCat} onValueChange={setFilterCat}>
-          <SelectTrigger className="w-40"><Filter className="w-4 h-4 mr-2 text-muted-foreground" /><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-full sm:w-40"><Filter className="w-4 h-4 mr-2 text-muted-foreground" /><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas</SelectItem>
             {CATEGORIAS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Button variant={filterFav ? "default" : "outline"} onClick={() => setFilterFav(!filterFav)} className="gap-2">
+        <Button variant={filterFav ? "default" : "outline"} onClick={() => setFilterFav(!filterFav)} className="gap-2 w-full sm:w-auto">
           <Star className={`w-4 h-4 ${filterFav ? "fill-current" : ""}`} /> Favoritos
         </Button>
       </div>
@@ -133,10 +133,10 @@ export default function Prompts() {
                 </button>
               </div>
               <p className="text-sm text-muted-foreground line-clamp-3 mb-4">{prompt.conteudo}</p>
-              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button size="sm" variant="ghost" onClick={() => copyPrompt(prompt.conteudo)} className="gap-1 text-xs h-7"><Copy className="w-3 h-3" /> Copiar</Button>
-                <Button size="sm" variant="ghost" onClick={() => handleOpenEdit(prompt)} className="gap-1 text-xs h-7"><Edit2 className="w-3 h-3" /> Editar</Button>
-                <Button size="sm" variant="ghost" onClick={() => setDeleteId(prompt.id)} className="gap-1 text-xs h-7 text-destructive"><Trash2 className="w-3 h-3" /> Excluir</Button>
+              <div className="flex items-center gap-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                <Button size="sm" variant="ghost" onClick={() => copyPrompt(prompt.conteudo)} className="gap-1 text-xs h-8 sm:h-7"><Copy className="w-3 h-3" /> Copiar</Button>
+                <Button size="sm" variant="ghost" onClick={() => handleOpenEdit(prompt)} className="gap-1 text-xs h-8 sm:h-7"><Edit2 className="w-3 h-3" /> Editar</Button>
+                <Button size="sm" variant="ghost" onClick={() => setDeleteId(prompt.id)} className="gap-1 text-xs h-8 sm:h-7 text-destructive"><Trash2 className="w-3 h-3" /> Excluir</Button>
               </div>
             </motion.div>
           ))}

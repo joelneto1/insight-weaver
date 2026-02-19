@@ -51,7 +51,50 @@ export default function Contas() {
     const [copiedField, setCopiedField] = useState<string | null>(null);
     const { copyToClipboard } = useCopy();
 
-    // Check permissions
+    const fetchContas = async () => {
+        if (!user || !ownerId) {
+            setLoading(false);
+            return;
+        }
+        setLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from("contas")
+                .select("*")
+                .eq("user_id", ownerId)
+                .order("created_at", { ascending: false });
+
+            if (error) {
+                toast({ title: "Erro ao carregar contas", description: error.message, variant: "destructive" });
+            } else if (data) {
+                const decrypted = await Promise.all(
+                    data.map(async (conta) => ({
+                        ...conta,
+                        senha_email: conta.senha_email
+                            ? await decryptText(conta.senha_email, ownerId)
+                            : null,
+                    }))
+                );
+                setContas(decrypted);
+            }
+        } catch (err) {
+            console.error("Contas fetch error:", err);
+            toast({ title: "Erro ao carregar contas", variant: "destructive" });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Fetch contas - ALL hooks MUST be before any conditional return
+    useEffect(() => {
+        if (!user || !ownerId) {
+            setLoading(false);
+            return;
+        }
+        fetchContas();
+    }, [user, ownerId]);
+
+    // Permission check AFTER all hooks (React rules)
     if (!isOwner && !permissions.contas) {
         return (
             <div className="flex flex-col items-center justify-center h-[calc(100vh-100px)] text-muted-foreground">
@@ -61,43 +104,6 @@ export default function Contas() {
             </div>
         );
     }
-
-    // Fetch contas
-    useEffect(() => {
-        if (!user || !ownerId) {
-            setLoading(false);
-            return;
-        }
-        fetchContas();
-    }, [user, ownerId]);
-
-    const fetchContas = async () => {
-        if (!user || !ownerId) {
-            setLoading(false);
-            return;
-        }
-        setLoading(true);
-        const { data, error } = await supabase
-            .from("contas")
-            .select("*")
-            .eq("user_id", ownerId)
-            .order("created_at", { ascending: false });
-
-        if (error) {
-            toast({ title: "Erro ao carregar contas", description: error.message, variant: "destructive" });
-        } else if (data) {
-            const decrypted = await Promise.all(
-                data.map(async (conta) => ({
-                    ...conta,
-                    senha_email: conta.senha_email
-                        ? await decryptText(conta.senha_email, ownerId)
-                        : null,
-                }))
-            );
-            setContas(decrypted);
-        }
-        setLoading(false);
-    };
 
     const handleCopy = async (text: string, fieldId: string, label: string) => {
         await copyToClipboard(text, label);
@@ -224,16 +230,16 @@ export default function Contas() {
     };
 
     return (
-        <div className="p-6 lg:p-8 space-y-6">
+        <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">Contas</h1>
-                    <p className="text-sm text-muted-foreground mt-1">
+                    <h1 className="text-xl sm:text-2xl font-bold text-foreground">Contas</h1>
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
                         Gerencie os logins e senhas dos seus canais
                     </p>
                 </div>
-                <Button onClick={openCreate} className="gradient-accent text-primary-foreground gap-2">
+                <Button onClick={openCreate} className="gradient-accent text-primary-foreground gap-2 w-full sm:w-auto">
                     <Plus className="w-4 h-4" /> Nova Conta
                 </Button>
             </div>
@@ -276,7 +282,7 @@ export default function Contas() {
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.95 }}
                                 transition={{ delay: i * 0.05 }}
-                                className="bg-card border border-border rounded-xl p-5 hover:border-primary/30 transition-all duration-300 group"
+                                className="bg-card border border-border rounded-xl p-4 sm:p-5 hover:border-primary/30 transition-all duration-300 group"
                             >
                                 {/* Card header */}
                                 <div className="flex items-start justify-between mb-4">
@@ -291,16 +297,16 @@ export default function Contas() {
                                             </span>
                                         </div>
                                     </div>
-                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                         <button
                                             onClick={() => openEdit(conta)}
-                                            className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                                            className="p-2 sm:p-1.5 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
                                         >
                                             <Pencil className="w-4 h-4" />
                                         </button>
                                         <button
                                             onClick={() => setDeleteId(conta.id)}
-                                            className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                                            className="p-2 sm:p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </button>

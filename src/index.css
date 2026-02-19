@@ -287,3 +287,46 @@ header.bg-background\/80 {
 * {
   scroll-behavior: smooth;
 }
+
+/* ===== MOBILE OPTIMIZATIONS ===== */
+@media (max-width: 640px) {
+
+  /* Prevent horizontal overflow on small screens */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Better touch targets on mobile */
+  button,
+  a,
+  [role="button"] {
+    min-height: 36px;
+    min-width: 36px;
+  }
+
+  /* Ensure dialogs don't overflow on mobile */
+  [role="dialog"] {
+    max-height: 90vh !important;
+    max-width: calc(100vw - 24px) !important;
+    margin: 12px;
+  }
+
+  /* Safe area padding for notched devices */
+  .p-4,
+  .p-3 {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+}
+
+/* Horizontal scroll snap for Kanban on mobile */
+@media (max-width: 768px) {
+  .kanban-scroll {
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .kanban-scroll>div>div {
+    scroll-snap-align: start;
+  }
+}
