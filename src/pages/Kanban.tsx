@@ -1,9 +1,14 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import {
-  DndContext, closestCorners, DragOverlay, type DragStartEvent, type DragEndEvent,
-  useSensor, useSensors, PointerSensor, TouchSensor,
+  DndContext, closestCenter, DragOverlay, type DragStartEvent, type DragEndEvent, type DragOverEvent,
+  useSensor, useSensors, PointerSensor, TouchSensor, KeyboardSensor,
+  MeasuringStrategy,
+  type UniqueIdentifier,
+  pointerWithin,
+  rectIntersection,
+  getFirstCollision,
 } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy, horizontalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
+import { SortableContext, verticalListSortingStrategy, horizontalListSortingStrategy, useSortable, arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { Plus, MoreVertical, Trash2, Edit2, Tv, Calendar as CalendarIcon, X, Check } from "lucide-react";
@@ -156,7 +161,12 @@ function SortableCard({ video, canais, onEdit, onDelete }: { video: Video; canai
     data: { type: "Video", video }
   });
 
-  const style = { transform: CSS.Transform.toString(transform), transition };
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition: transition || 'transform 200ms cubic-bezier(0.25, 1, 0.5, 1)',
+    opacity: isDragging ? 0.4 : 1,
+    zIndex: isDragging ? 50 : 'auto' as any,
+  };
   const canal = canais.find((c) => c.id === video.canal_id);
 
   return (
@@ -166,10 +176,10 @@ function SortableCard({ video, canais, onEdit, onDelete }: { video: Video; canai
       {...attributes}
       {...listeners}
       className={cn(
-        "bg-card border border-border/50 rounded-lg p-3 group hover:border-primary/30 transition-all duration-200 cursor-grab active:cursor-grabbing",
-        isDragging && "opacity-50 shadow-lg scale-105 rotate-[2deg] z-50"
+        "bg-card border border-border/50 rounded-lg p-3 group hover:border-primary/30 transition-colors duration-150 cursor-grab active:cursor-grabbing touch-none",
+        isDragging && "shadow-xl ring-2 ring-primary/30"
       )}
-      onClick={onEdit} // Click to edit unless dragging
+      onClick={onEdit}
     >
       <div className="flex items-start gap-2">
         {/* Removed GripVertical button, whole card is draggable */}
@@ -213,10 +223,10 @@ function SortableCard({ video, canais, onEdit, onDelete }: { video: Video; canai
 function DragOverlayCard({ video, canais }: { video: Video; canais: Canal[] }) {
   const canal = canais.find((c) => c.id === video.canal_id);
   return (
-    <div className="bg-card border-2 border-primary/40 rounded-lg p-3 shadow-2xl rotate-[3deg] scale-105 cursor-grabbing">
+    <div className="bg-card border-2 border-primary/40 rounded-lg p-3 shadow-2xl rotate-[1.5deg] scale-[1.02] cursor-grabbing w-[280px]" style={{ boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)' }}>
       <div className="flex items-start gap-2">
-        <div>
-          <p className="text-sm font-medium text-foreground">{video.titulo}</p>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-foreground truncate">{video.titulo}</p>
           {canal && (
             <div className="mt-1">
               <p className="text-xs text-muted-foreground">{canal.nome}</p>
@@ -275,41 +285,132 @@ export default function Kanban() {
   const [saving, setSaving] = useState(false);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  // Track the last valid overId for collision detection
+  const lastOverId = useRef<UniqueIdentifier | null>(null);
+  const recentlyMovedToNewContainer = useRef(false);
 
   const columnVideos = useMemo(() => {
     const result: Record<string, Video[]> = {};
     columns.forEach(col => { result[col.id] = []; });
 
-    const fallbackId = columns[0]?.id;
-
     videos.forEach((v) => {
       if (v.column_id && result[v.column_id]) {
         result[v.column_id].push(v);
-      } else if (fallbackId && !v.column_id) {
-        // Should we handle unassigned videos? For now, ignoring or let backend handle.
       }
     });
     return result;
   }, [videos, columns]);
 
+  // Custom collision detection that works well for Kanban boards
+  const collisionDetectionStrategy = useCallback(
+    (args: any) => {
+      // First check for pointer within droppables (columns)
+      if (activeColumn) {
+        return closestCenter(args);
+      }
+
+      // For cards, use pointer + rect intersection combo
+      const pointerCollisions = pointerWithin(args);
+      const collisions = pointerCollisions.length > 0 ? pointerCollisions : rectIntersection(args);
+
+      let overId = getFirstCollision(collisions, 'id');
+
+      if (overId != null) {
+        // If over a column, find the closest card within
+        if (columns.some(c => c.id === overId)) {
+          const containerItems = columnVideos[overId as string] || [];
+          if (containerItems.length > 0) {
+            const closestInColumn = closestCenter({
+              ...args,
+              droppableContainers: args.droppableContainers.filter(
+                (container: any) => container.id !== overId && containerItems.some(v => v.id === container.id)
+              ),
+            });
+            if (closestInColumn.length > 0) {
+              overId = closestInColumn[0].id;
+            }
+          }
+        }
+        lastOverId.current = overId;
+        return [{ id: overId }];
+      }
+
+      if (recentlyMovedToNewContainer.current) {
+        lastOverId.current = null;
+      }
+
+      return lastOverId.current ? [{ id: lastOverId.current }] : [];
+    },
+    [activeColumn, columns, columnVideos]
+  );
+
+  // Measuring strategy for better overlay positioning
+  const measuring = {
+    droppable: {
+      strategy: MeasuringStrategy.Always,
+    },
+  };
+
   const handleDragStart = (event: DragStartEvent) => {
     if (event.active.data.current?.type === "Column") {
       setActiveColumn(event.active.data.current.column);
+      setActiveVideo(null);
       return;
     }
     if (event.active.data.current?.type === "Video") {
       setActiveVideo(event.active.data.current.video);
+      setActiveColumn(null);
       return;
     }
   };
 
+  // Handle drag over: move cards between columns in real-time
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    // Only handle video drag-over
+    if (active.data.current?.type !== "Video") return;
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+
+    // Find which column the active card currently belongs to
+    const activeVideo = videos.find(v => v.id === activeId);
+    if (!activeVideo || !activeVideo.column_id) return;
+
+    // Determine the target column
+    let targetColumnId: string | null = null;
+
+    const isOverColumn = columns.some(c => c.id === overId);
+    if (isOverColumn) {
+      targetColumnId = overId;
+    } else {
+      const overVideo = videos.find(v => v.id === overId);
+      if (overVideo?.column_id) {
+        targetColumnId = overVideo.column_id;
+      }
+    }
+
+    if (!targetColumnId) return;
+    if (activeVideo.column_id === targetColumnId) return;
+
+    // Move card to new column optimistically (local state only, no server call yet)
+    recentlyMovedToNewContainer.current = true;
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
     setActiveColumn(null);
     setActiveVideo(null);
-    const { active, over } = event;
+    recentlyMovedToNewContainer.current = false;
+
     if (!over) return;
 
     const activeId = String(active.id);
@@ -327,27 +428,27 @@ export default function Kanban() {
       return;
     }
 
-    // Handling Video Reordering
+    // Handling Video Drop
     const video = videos.find((v) => v.id === activeId);
     if (!video) return;
 
     let targetColumnId: string | null = null;
     let newIndex = 0;
 
-    // Check if over is a column
     const isOverColumn = columns.some(c => c.id === overId);
 
     if (isOverColumn) {
       targetColumnId = overId;
-      // If over column, put at end
-      newIndex = columnVideos[targetColumnId]?.length || 0;
+      // Dropping on empty column or at end
+      const colVids = columnVideos[targetColumnId] || [];
+      newIndex = colVids.filter(v => v.id !== activeId).length;
     } else {
-      // Over a card
       const overVideo = videos.find((v) => v.id === overId);
-      if (overVideo && overVideo.column_id) {
+      if (overVideo?.column_id) {
         targetColumnId = overVideo.column_id;
-        const overIndex = columnVideos[targetColumnId].findIndex((v) => v.id === overId);
-        newIndex = overIndex >= 0 ? overIndex : 0;
+        const colVids = (columnVideos[targetColumnId] || []).filter(v => v.id !== activeId);
+        const overIndex = colVids.findIndex((v) => v.id === overId);
+        newIndex = overIndex >= 0 ? overIndex : colVids.length;
       }
     }
 
@@ -358,26 +459,30 @@ export default function Kanban() {
 
     if (sourceColumnId === targetColumnId) {
       // Reordering in same column
-      const currentList = columnVideos[sourceColumnId];
+      const currentList = [...(columnVideos[sourceColumnId] || [])];
       const oldIndex = currentList.findIndex((v) => v.id === activeId);
 
-      if (oldIndex !== newIndex) {
+      if (oldIndex !== -1 && oldIndex !== newIndex) {
         const reordered = arrayMove(currentList, oldIndex, newIndex);
         const updates = reordered.map((v, index) => ({
           id: v.id,
-          data: { position: index }
+          data: { position: index, column_id: sourceColumnId }
         }));
-        const updatesWithMeta = updates.map(u => ({ id: u.id, data: { ...u.data, column_id: sourceColumnId } }));
-        bulkUpdate(updatesWithMeta);
+        bulkUpdate(updates);
       }
     } else {
       // Moving to different column
-      const targetList = columnVideos[targetColumnId];
-      const newTargetList = [...targetList];
+      // Remove from source
+      const sourceList = (columnVideos[sourceColumnId] || []).filter(v => v.id !== activeId);
+      const sourceUpdates = sourceList.map((v, index) => ({
+        id: v.id,
+        data: { position: index, column_id: sourceColumnId }
+      }));
 
-      newTargetList.splice(newIndex, 0, video);
-
-      const updates = newTargetList.map((v, index) => ({
+      // Add to target at correct position
+      const targetList = (columnVideos[targetColumnId] || []).filter(v => v.id !== activeId);
+      targetList.splice(newIndex, 0, video);
+      const targetUpdates = targetList.map((v, index) => ({
         id: v.id,
         data: {
           position: index,
@@ -385,8 +490,22 @@ export default function Kanban() {
         } as Partial<VideoInsert>
       }));
 
-      bulkUpdate(updates);
+      bulkUpdate([...sourceUpdates, ...targetUpdates]);
     }
+  };
+
+  // Drop animation configuration for smoother feel
+  const dropAnimationConfig = {
+    sideEffects: ({ active, dragOverlay }: any) => {
+      if (active && dragOverlay) {
+        active.node.style.opacity = '0.4';
+      }
+      return () => {
+        if (active) {
+          active.node.style.opacity = '';
+        }
+      };
+    },
   };
 
   const handleCreateVideo = (columnId?: string) => {
@@ -470,7 +589,14 @@ export default function Kanban() {
       ) : columns.length === 0 ? (
         <EmptyState icon={Tv} title="Nenhuma coluna configurada" description="Crie sua primeira coluna para começar (ex: Planejamento)." actionLabel="Criar Coluna" onAction={() => setShowColumnModal(true)} />
       ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={collisionDetectionStrategy}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+          measuring={measuring}
+        >
           <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4">
             <SortableContext items={columns.map(c => c.id)} strategy={horizontalListSortingStrategy}>
               <div className="flex gap-4 h-full min-w-max px-1 items-start">
@@ -481,19 +607,24 @@ export default function Kanban() {
                     onEditTitle={(newTitle) => updateColumn(col.id, { title: newTitle })}
                     onDelete={() => setDeleteColumnId(col.id)}
                     onAddVideo={() => handleCreateVideo(col.id)}
-                    itemCount={videos.filter(v => v.column_id === col.id).length}
+                    itemCount={(columnVideos[col.id] || []).length}
                   >
                     <SortableContext items={(columnVideos[col.id] || []).map((v) => v.id)} strategy={verticalListSortingStrategy}>
                       {(columnVideos[col.id] || []).map((video) => (
                         <SortableCard key={video.id} video={video} canais={canais} onEdit={() => handleEditVideo(video)} onDelete={() => setDeleteVideoId(video.id)} />
                       ))}
+                      {(columnVideos[col.id] || []).length === 0 && (
+                        <div className="h-20 flex items-center justify-center rounded-lg border-2 border-dashed border-border/30 text-xs text-muted-foreground/50">
+                          Solte aqui
+                        </div>
+                      )}
                     </SortableContext>
                   </SortableColumn>
                 ))}
               </div>
             </SortableContext>
           </div>
-          <DragOverlay>
+          <DragOverlay dropAnimation={dropAnimationConfig} zIndex={1000}>
             {activeColumn && (
               <DragOverlayColumn column={activeColumn} itemCount={(columnVideos[activeColumn.id] || []).length}>
                 {columnVideos[activeColumn.id]?.map(video => (

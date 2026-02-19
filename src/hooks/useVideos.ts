@@ -109,24 +109,40 @@ export function useVideos() {
 
     const bulkUpdate = async (updates: { id: string; data: Partial<VideoInsert> }[]) => {
         if (!user || !ownerId) return false;
+
+        // Optimistic update: apply changes to local state immediately
+        setVideos(prev => {
+            const updatesMap = new Map(updates.map(u => [u.id, u.data]));
+            const updated = prev.map(v => {
+                const patch = updatesMap.get(v.id);
+                return patch ? { ...v, ...patch } : v;
+            });
+            // Update cache too
+            cache.data = updated;
+            return updated;
+        });
+
         try {
-            setLoading(true);
-            await Promise.all(updates.map(u =>
+            // Send all updates to server in background (no loading state)
+            const results = await Promise.all(updates.map(u =>
                 supabase
                     .from("videos")
                     .update(u.data)
                     .eq("id", u.id)
                     .eq("user_id", ownerId)
             ));
-            await fetch(true);
+            const hasError = results.some(r => r.error);
+            if (hasError) {
+                console.error("Some bulk updates failed, refetching...");
+                await fetch(true);
+            }
             return true;
         } catch (error) {
             console.error("Bulk update failed:", error);
             toastRef.current({ title: "Erro ao atualizar ordem", variant: "destructive" });
+            // On failure, refetch to get correct state
             await fetch(true);
             return false;
-        } finally {
-            setLoading(false);
         }
     };
 
