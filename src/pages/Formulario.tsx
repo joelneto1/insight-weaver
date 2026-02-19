@@ -4,10 +4,13 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function Formulario() {
     const { toast } = useToast();
+    const { user } = useAuth();
 
     const [titulo, setTitulo] = useState("");
     const [nomeCanal, setNomeCanal] = useState("");
@@ -36,15 +39,31 @@ export default function Formulario() {
                 throw new Error("URL do webhook não configurada. Verifique a variável VITE_N8N_WEBHOOK_URL.");
             }
 
+            // Get the current session token for authentication
+            const { data: { session } } = await supabase.auth.getSession();
+            const webhookSecret = import.meta.env.VITE_N8N_WEBHOOK_SECRET;
+
+            // Build headers with authentication
+            const headers: Record<string, string> = {
+                "Content-Type": "application/json",
+            };
+            if (session?.access_token) {
+                headers["Authorization"] = `Bearer ${session.access_token}`;
+            }
+            if (webhookSecret) {
+                headers["X-Webhook-Secret"] = webhookSecret;
+            }
+
             // Envia os dados para o webhook do n8n
             const response = await fetch(webhookUrl, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers,
                 body: JSON.stringify({
                     titulo,
                     nome_canal: nomeCanal,
                     idioma,
                     quantidade_imagens: Number(quantidadeImagens),
+                    user_id: user?.id,
                 }),
             });
 

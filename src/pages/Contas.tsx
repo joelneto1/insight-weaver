@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { encryptText, decryptText } from "@/lib/crypto";
+import { encryptText, decryptBatch } from "@/lib/crypto";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2, Eye, EyeOff, User, Mail, Phone, Lock, Globe, StickyNote, KeyRound, Copy, Check } from "lucide-react";
@@ -67,14 +67,15 @@ export default function Contas() {
             if (error) {
                 toast({ title: "Erro ao carregar contas", description: error.message, variant: "destructive" });
             } else if (data) {
-                const decrypted = await Promise.all(
-                    data.map(async (conta) => ({
-                        ...conta,
-                        senha_email: conta.senha_email
-                            ? await decryptText(conta.senha_email, ownerId)
-                            : null,
-                    }))
-                );
+                const batchItems = data.map((conta) => ({
+                    id: conta.id,
+                    text: conta.senha_email,
+                }));
+                const decryptedMap = await decryptBatch(batchItems, ownerId);
+                const decrypted = data.map((conta) => ({
+                    ...conta,
+                    senha_email: decryptedMap.get(conta.id) ?? conta.senha_email,
+                }));
                 setContas(decrypted);
             }
         } catch (err) {
