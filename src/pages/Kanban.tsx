@@ -176,7 +176,7 @@ function SortableCard({ video, canais, onEdit, onDelete }: { video: Video; canai
       {...attributes}
       {...listeners}
       className={cn(
-        "bg-card border border-border/50 rounded-lg p-3 group hover:border-primary/30 transition-colors duration-150 cursor-grab active:cursor-grabbing touch-none",
+        "kanban-card bg-card border border-border/50 rounded-lg p-3 group hover:border-primary/30 transition-all duration-200 cursor-grab active:cursor-grabbing touch-none",
         isDragging && "shadow-xl ring-2 ring-primary/30"
       )}
       onClick={onEdit}
