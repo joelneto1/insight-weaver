@@ -90,7 +90,7 @@ function DroppableColumn({ id, title, children, attributes, listeners, onEditTit
   };
 
   return (
-    <div className="bg-secondary/30 rounded-xl border border-border/40 p-2.5 sm:p-3 flex flex-col min-w-[260px] sm:min-w-[280px] w-[270px] sm:w-[300px] h-full shadow-sm">
+    <div className="bg-secondary/30 rounded-xl border border-border/40 p-2.5 sm:p-3 flex flex-col min-w-[260px] sm:min-w-[280px] w-[270px] sm:w-[300px] max-h-full shadow-sm">
       {/* Header - Drag Handle is valid here */}
       <div
         {...attributes}
@@ -148,7 +148,7 @@ function DroppableColumn({ id, title, children, attributes, listeners, onEditTit
         </div>
       </div>
 
-      <div ref={setNodeRef} className={cn("flex-1 min-h-[150px] space-y-2 transition-colors duration-200 rounded-lg p-1", isOver && "bg-primary/5 ring-2 ring-primary/20 ring-dashed")}>
+      <div ref={setNodeRef} className={cn("flex-1 min-h-[80px] overflow-y-auto space-y-2 transition-colors duration-200 rounded-lg p-1", isOver && "bg-primary/5 ring-2 ring-primary/20 ring-dashed")}>
         {children}
       </div>
     </div>
@@ -648,7 +648,7 @@ export default function Kanban() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[100vw] overflow-x-hidden h-[calc(100vh-60px)] flex flex-col">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[100vw] overflow-x-hidden h-[calc(100vh-60px)] flex flex-col overflow-hidden">
       <PageHeader title="Kanban de Produção" description="Gerencie seu fluxo de produção de vídeos">
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <Button variant="outline" onClick={() => setShowColumnModal(true)} className="gap-2 w-full sm:w-auto">
@@ -673,9 +673,9 @@ export default function Kanban() {
           onDragEnd={handleDragEnd}
           measuring={measuring}
         >
-          <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4 kanban-scroll">
+          <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4 kanban-scroll min-h-0">
             <SortableContext items={columns.map(c => c.id)} strategy={horizontalListSortingStrategy}>
-              <div className="flex gap-4 h-full min-w-max px-1 items-start">
+              <div className="flex gap-4 h-full min-w-max px-1 items-stretch">
                 {columns.map((col) => (
                   <SortableColumn
                     key={col.id}

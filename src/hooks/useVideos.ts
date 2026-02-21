@@ -38,15 +38,24 @@ export function useVideos() {
                 .order("column_id", { ascending: true })
                 .order("position", { ascending: true });
             if (error) {
-                toastRef.current({ title: "Erro ao carregar vídeos", description: error.message, variant: "destructive" });
+                // Don't show toast for abort errors (normal during navigation/cleanup)
+                if (error.message?.includes('abort') || error.message?.includes('AbortError')) {
+                    console.debug("useVideos: fetch aborted (expected)");
+                } else {
+                    toastRef.current({ title: "Erro ao carregar vídeos", description: error.message, variant: "destructive" });
+                }
             } else {
                 const result = (data as Video[]) || [];
                 cache.ownerId = ownerId;
                 cache.data = result;
                 setVideos(result);
             }
-        } catch (err) {
-            console.error("useVideos fetch error:", err);
+        } catch (err: any) {
+            if (err?.name === 'AbortError' || err?.message?.includes('abort')) {
+                console.debug("useVideos: fetch aborted (expected)");
+            } else {
+                console.error("useVideos fetch error:", err);
+            }
         } finally {
             setLoading(false);
         }

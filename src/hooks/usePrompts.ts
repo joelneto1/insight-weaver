@@ -37,15 +37,23 @@ export function usePrompts() {
                 .eq("user_id", ownerId)
                 .order("created_at", { ascending: false });
             if (error) {
-                toastRef.current({ title: "Erro ao carregar prompts", description: error.message, variant: "destructive" });
+                if (error.message?.includes('abort') || error.message?.includes('AbortError')) {
+                    console.debug("usePrompts: fetch aborted (expected)");
+                } else {
+                    toastRef.current({ title: "Erro ao carregar prompts", description: error.message, variant: "destructive" });
+                }
             } else {
                 const result = data || [];
                 cache.ownerId = ownerId;
                 cache.data = result;
                 setPrompts(result);
             }
-        } catch (err) {
-            console.error("usePrompts fetch error:", err);
+        } catch (err: any) {
+            if (err?.name === 'AbortError' || err?.message?.includes('abort')) {
+                console.debug("usePrompts: fetch aborted (expected)");
+            } else {
+                console.error("usePrompts fetch error:", err);
+            }
         } finally {
             setLoading(false);
         }

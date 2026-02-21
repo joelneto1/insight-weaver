@@ -38,15 +38,23 @@ export function useCanais() {
                 .eq("user_id", ownerId)
                 .order("created_at", { ascending: true });
             if (error) {
-                toastRef.current({ title: "Erro ao carregar canais", description: error.message, variant: "destructive" });
+                if (error.message?.includes('abort') || error.message?.includes('AbortError')) {
+                    console.debug("useCanais: fetch aborted (expected)");
+                } else {
+                    toastRef.current({ title: "Erro ao carregar canais", description: error.message, variant: "destructive" });
+                }
             } else {
                 const result = data || [];
                 cache.ownerId = ownerId;
                 cache.data = result;
                 setCanais(result);
             }
-        } catch (err) {
-            console.error("useCanais fetch error:", err);
+        } catch (err: any) {
+            if (err?.name === 'AbortError' || err?.message?.includes('abort')) {
+                console.debug("useCanais: fetch aborted (expected)");
+            } else {
+                console.error("useCanais fetch error:", err);
+            }
         } finally {
             setLoading(false);
         }

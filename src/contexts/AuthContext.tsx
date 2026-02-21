@@ -123,7 +123,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (teamData && teamData.owner_id !== userId) {
         // This user IS a team member (not the owner)
-        // Set ownerId IMMEDIATELY so hooks can start fetching
         setOwnerId(teamData.owner_id);
         const perms = typeof teamData.permissions === 'object' && teamData.permissions !== null
           ? teamData.permissions as Record<string, boolean>
@@ -167,6 +166,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user) await fetchProfileAndTeam(user.id, user.email);
   }, [user, fetchProfileAndTeam]);
 
+  // Store stable references to avoid effect re-runs
+  const fetchProfileAndTeamRef = useRef(fetchProfileAndTeam);
+  fetchProfileAndTeamRef.current = fetchProfileAndTeam;
+  const clearAllStateRef = useRef(clearAllState);
+  clearAllStateRef.current = clearAllState;
+
   useEffect(() => {
     let mounted = true;
 
@@ -183,12 +188,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setSession(currentSession);
           setUser(currentSession.user);
           // CRITICAL: await this so ownerId is set BEFORE loading becomes false
-          await fetchProfileAndTeam(currentSession.user.id, currentSession.user.email);
+          await fetchProfileAndTeamRef.current(currentSession.user.id, currentSession.user.email);
         } else {
-          clearAllState();
+          clearAllStateRef.current();
         }
       } catch (error) {
-        console.error("AuthContext: Initial session fetch error:", error);
+        // Only log non-abort errors, abort errors are expected on cleanup
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          console.debug("AuthContext: Session fetch aborted (expected on cleanup)");
+        } else {
+          console.error("AuthContext: Initial session fetch error:", error);
+        }
       } finally {
         if (mounted) {
           initialAuthDone.current = true;
@@ -210,14 +220,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log("AuthContext: onAuthStateChange event:", event);
 
         if (event === 'SIGNED_OUT') {
-          clearAllState();
+          clearAllStateRef.current();
           setLoading(false);
         } else if (event === 'SIGNED_IN') {
           // Only process if initializeAuth already ran (avoids double-fetch)
           if (initialAuthDone.current && currentSession?.user) {
             setSession(currentSession);
             setUser(currentSession.user);
-            await fetchProfileAndTeam(currentSession.user.id, currentSession.user.email);
+            await fetchProfileAndTeamRef.current(currentSession.user.id, currentSession.user.email);
             setLoading(false);
           }
         } else if (event === 'TOKEN_REFRESHED') {
@@ -230,20 +240,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // Safety timeout — force loading=false after 6s
+    // Safety timeout — force loading=false after 10s (increased to give more time)
     const safetyTimer = setTimeout(() => {
-      if (mounted && loading) {
-        console.warn("AuthContext: Safety timeout reached, forcing loading=false");
-        setLoading(false);
+      if (mounted) {
+        setLoading(prev => {
+          if (prev) {
+            console.warn("AuthContext: Safety timeout reached, forcing loading=false");
+            return false;
+          }
+          return prev;
+        });
       }
-    }, 6000);
+    }, 10000);
 
     return () => {
       mounted = false;
       clearTimeout(safetyTimer);
       subscription.unsubscribe();
     };
-  }, [fetchProfileAndTeam, clearAllState]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - runs once on mount, uses refs for latest callbacks
 
   const signOut = useCallback(async () => {
     console.log("AuthContext: signOut initiated");

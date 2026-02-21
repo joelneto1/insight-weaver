@@ -38,15 +38,25 @@ export function useKanbanColumns() {
                 .eq("user_id", ownerId)
                 .order("position", { ascending: true });
             if (error) {
-                toastRef.current({ title: "Erro ao carregar colunas", description: error.message, variant: "destructive" });
+                // Don't show toast for abort errors (normal during navigation/cleanup)
+                if (error.message?.includes('abort') || error.message?.includes('AbortError')) {
+                    console.debug("useKanbanColumns: fetch aborted (expected)");
+                } else {
+                    toastRef.current({ title: "Erro ao carregar colunas", description: error.message, variant: "destructive" });
+                }
             } else {
                 const result = data || [];
                 cache.ownerId = ownerId;
                 cache.data = result;
                 setColumns(result);
             }
-        } catch (err) {
-            console.error("useKanbanColumns fetch error:", err);
+        } catch (err: any) {
+            // Don't log abort errors as they're expected during cleanup
+            if (err?.name === 'AbortError' || err?.message?.includes('abort')) {
+                console.debug("useKanbanColumns: fetch aborted (expected)");
+            } else {
+                console.error("useKanbanColumns fetch error:", err);
+            }
         } finally {
             setLoading(false);
         }
